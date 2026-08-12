@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Grocery Hub</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0f1419;
+    --card: #1a2332;
+    --card-border: #26324a;
+    --cyan: #00d9ff;
+    --orange: #ff6b35;
+    --gold: #ffd60a;
+    --mint: #06d6a0;
+    --text: #ffffff;
+    --muted: #8892b0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+
+  .topbar {
+    background: linear-gradient(135deg, #4c4ce0 0%, #6b3fd4 100%);
+    padding: 20px 20px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .topbar h1 { font-size: 20px; font-weight: 800; letter-spacing: 0.5px; }
+
+  .topbar .status-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--muted);
+  }
+
+  .topbar .status-dot.connected {
+    background: var(--mint);
+    box-shadow: 0 0 8px var(--mint);
+  }
+
+  .hero { padding: 24px 20px 8px; }
+  .hero-title { font-size: 30px; font-weight: 900; line-height: 1.1; }
+  .hero-title .accent { color: var(--cyan); }
+  .hero-sub {
+    color: var(--muted); font-size: 13px; margin-top: 6px;
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+
+  .stats-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 20px;
+  }
+
+  .stat-box {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 16px 10px; text-align: center;
+  }
+
+  .stat-box .num { font-size: 26px; font-weight: 900; color: var(--cyan); }
+  .stat-box .label {
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-top: 4px;
+  }
+
+  .section-title {
+    padding: 8px 20px; font-size: 12px; font-weight: 800; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+
+  .cards { display: flex; flex-direction: column; gap: 10px; padding: 0 20px 20px; }
+
+  .item-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 14px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .item-left .name { font-size: 15px; font-weight: 700; }
+  .item-left .meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  .week-badge {
+    display: inline-block; background: rgba(0,217,255,0.12); color: var(--cyan);
+    font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 6px; margin-right: 6px;
+  }
+
+  .priority-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 6px; }
+  .priority-High { background: rgba(255,107,53,0.15); color: var(--orange); }
+  .priority-Medium { background: rgba(255,214,10,0.15); color: var(--gold); }
+  .priority-Low { background: rgba(6,214,160,0.15); color: var(--mint); }
+
+  .empty, .loading, .error { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
+  .error { color: var(--orange); }
+
+  .refresh-btn {
+    margin: 0 20px 20px; width: calc(100% - 40px); background: var(--cyan);
+    color: #0f1419; border: none; padding: 14px; border-radius: 12px;
+    font-weight: 800; font-size: 13px; text-transform: uppercase;
+    letter-spacing: 0.5px; cursor: pointer;
+  }
+
+  .refresh-btn:active { opacity: 0.8; }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>🛒 Grocery Hub</h1>
+    <div class="status-dot" id="statusDot"></div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-title">WEEK <span class="accent" id="weekNum">—</span></div>
+    <div class="hero-sub" id="lastUpdated">Connecting...</div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="num" id="totalItems">—</div>
+      <div class="label">Items</div>
+    </div>
+    <div class="stat-box">
+      <div class="num" id="highCount">—</div>
+      <div class="label">High Priority</div>
+    </div>
+    <div class="stat-box">
+      <div class="num" id="catCount">—</div>
+      <div class="label">Categories</div>
+    </div>
+  </div>
+
+  <div class="section-title">Your Grocery List</div>
+  <div class="cards" id="itemsContainer">
+    <div class="loading">Loading your list...</div>
+  </div>
+
+  <button class="refresh-btn" onclick="loadItems()">↻ Refresh</button>
+
+<script>
+  var API_URL = "https://script.google.com/macros/s/AKfycbytVlPk_mRoGplYQhABHgTJ-FFYqE1hBWOJMzOQTVzz2PwLHbPxvoeKm6bc4y78X8qx/exec";
+
+  function loadItems() {
+    document.getElementById('itemsContainer').innerHTML = '<div class="loading">Loading your list...</div>';
+    document.getElementById('lastUpdated').textContent = 'Connecting...';
+    document.getElementById('statusDot').classList.remove('connected');
+
+    fetch(API_URL + '?action=getItems')
+      .then(function(res) { return res.json(); })
+      .then(function(items) {
+        if (items.error) {
+          throw new Error(items.error);
+        }
+        renderItems(items);
+        document.getElementById('statusDot').classList.add('connected');
+        var now = new Date();
+        document.getElementById('lastUpdated').textContent =
+          'Synced ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      })
+      .catch(function(err) {
+        document.getElementById('itemsContainer').innerHTML =
+          '<div class="error">Could not load data.<br>' + err.message + '</div>';
+        document.getElementById('lastUpdated').textContent = 'Connection failed';
+      });
+  }
+
+  function renderItems(items) {
+    var container = document.getElementById('itemsContainer');
+
+    if (!items || items.length === 0) {
+      container.innerHTML = '<div class="empty">No items yet.</div>';
+      document.getElementById('totalItems').textContent = '0';
+      document.getElementById('highCount').textContent = '0';
+      document.getElementById('catCount').textContent = '0';
+      document.getElementById('weekNum').textContent = '-';
+      return;
+    }
+
+    var weeks = items.map(function(i) { return parseInt(i.week) || 1; });
+    var maxWeek = Math.max.apply(null, weeks);
+    document.getElementById('weekNum').textContent = maxWeek;
+
+    var sorted = items.slice().sort(function(a, b) {
+      var order = { High: 0, Medium: 1, Low: 2 };
+      return order[a.priority] - order[b.priority];
+    });
+
+    var html = '';
+    sorted.forEach(function(item) {
+      html += '<div class="item-card">';
+      html += '  <div class="item-left">';
+      html += '    <div class="name">' + item.name + '</div>';
+      html += '    <div class="meta"><span class="week-badge">W' + item.week + '</span>' + (item.category || '') + ' - ' + (item.quantity || '-') + '</div>';
+      html += '  </div>';
+      html += '  <div class="priority-badge priority-' + item.priority + '">' + item.priority + '</div>';
+      html += '</div>';
+    });
+    container.innerHTML = html;
+
+    document.getElementById('totalItems').textContent = items.length;
+    document.getElementById('highCount').textContent = items.filter(function(i) { return i.priority === 'High'; }).length;
+    document.getElementById('catCount').textContent = new Set(items.map(function(i) { return i.category; })).size;
+  }
+
+  loadItems();
+</script>
+
+</body>
+</html>
