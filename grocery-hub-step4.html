@@ -102,6 +102,17 @@
   .priority-Medium { background: rgba(255,214,10,0.15); color: var(--gold); }
   .priority-Low { background: rgba(6,214,160,0.15); color: var(--mint); }
 
+  .item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+  .item-delete {
+    background: rgba(255,107,53,0.12); color: var(--orange);
+    border: none; width: 26px; height: 26px; border-radius: 50%;
+    font-size: 14px; font-weight: 900; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .item-delete:active { background: var(--orange); color: #0f1419; }
+
   .empty, .loading, .error { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
   .error { color: var(--orange); }
 
@@ -393,7 +404,10 @@
       html += '    <div class="name">' + item.name + '</div>';
       html += '    <div class="meta"><span class="week-badge">W' + item.week + '</span>' + (item.category || '') + ' - ' + (item.quantity || '-') + '</div>';
       html += '  </div>';
-      html += '  <div class="priority-badge priority-' + item.priority + '">' + item.priority + '</div>';
+      html += '  <div class="item-right">';
+      html += '    <div class="priority-badge priority-' + item.priority + '">' + item.priority + '</div>';
+      html += '    <button class="item-delete" onclick="deleteItem(' + item.sheetRowNumber + ', \'' + item.name.replace(/'/g, "\\'") + '\')">✕</button>';
+      html += '  </div>';
       html += '</div>';
     });
     container.innerHTML = html;
@@ -401,6 +415,26 @@
     document.getElementById('totalItems').textContent = items.length;
     document.getElementById('highCount').textContent = items.filter(function(i) { return i.priority === 'High'; }).length;
     document.getElementById('catCount').textContent = new Set(items.map(function(i) { return i.category; })).size;
+  }
+
+  // ---------- Delete ----------
+  function deleteItem(sheetRowNumber, itemName) {
+    if (!confirm('Remove "' + itemName + '" from your list?')) return;
+
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'deleteItem', sheetRowNumber: sheetRowNumber })
+    })
+      .then(function(res) { return res.json(); })
+      .then(function(result) {
+        if (result.error) throw new Error(result.error);
+        showToast('✓ ' + itemName + ' removed');
+        loadItems();
+      })
+      .catch(function(err) {
+        alert('Could not delete item: ' + err.message);
+      });
   }
 
   // ---------- Add Items ----------
