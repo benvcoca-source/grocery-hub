@@ -429,6 +429,35 @@
   var pendingTemplate = null;
   var currentWeek = 1;
 
+  // Robust fetch wrapper: retries once automatically if Google's server
+  // returns a temporary HTML page instead of JSON (common cold-start issue)
+  function fetchJSON(url, options, retryDelay) {
+    retryDelay = retryDelay || 900;
+    return fetch(url, options)
+      .then(function(res) { return res.text(); })
+      .then(function(text) {
+        try {
+          return JSON.parse(text);
+        } catch (parseErr) {
+          // Not valid JSON - wait briefly and try once more
+          return new Promise(function(resolve, reject) {
+            setTimeout(function() {
+              fetch(url, options)
+                .then(function(res2) { return res2.text(); })
+                .then(function(text2) {
+                  try {
+                    resolve(JSON.parse(text2));
+                  } catch (parseErr2) {
+                    reject(new Error('Server is temporarily unavailable. Please try again in a moment.'));
+                  }
+                })
+                .catch(reject);
+            }, retryDelay);
+          });
+        }
+      });
+  }
+
   // ---------- Navigation ----------
   function showScreen(name) {
     document.getElementById('screen-dashboard').classList.remove('active');
@@ -450,8 +479,7 @@
     document.getElementById('lastUpdated').textContent = 'Connecting...';
     document.getElementById('statusDot').classList.remove('connected');
 
-    fetch(API_URL + '?action=getItems')
-      .then(function(res) { return res.json(); })
+    fetchJSON(API_URL + '?action=getItems')
       .then(function(items) {
         if (items.error) { throw new Error(items.error); }
         currentItems = items;
@@ -554,22 +582,20 @@
       notes: document.getElementById('manualNotes').value.trim()
     };
 
-    fetch(API_URL, {
+    fetchJSON(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     })
-      .then(function(res) { return res.json(); })
       .then(function(result) {
         if (result.error) throw new Error(result.error);
         closeManualModal();
         showToast('✓ ' + payload.name + ' added');
-        fetch(API_URL + '?action=getItems')
-          .then(function(res) { return res.json(); })
-          .then(function(items) {
-            currentItems = items;
-            renderTemplateList();
-          });
+        return fetchJSON(API_URL + '?action=getItems');
+      })
+      .then(function(items) {
+        currentItems = items;
+        renderTemplateList();
       })
       .catch(function(err) {
         closeManualModal();
@@ -581,12 +607,11 @@
   function togglePicked(sheetRowNumber, currentlyPicked) {
     var newState = !currentlyPicked;
 
-    fetch(API_URL, {
+    fetchJSON(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'togglePicked', sheetRowNumber: sheetRowNumber, picked: newState })
     })
-      .then(function(res) { return res.json(); })
       .then(function(result) {
         if (result.error) throw new Error(result.error);
         loadItems();
@@ -600,12 +625,11 @@
   function deleteItem(sheetRowNumber, itemName) {
     if (!confirm('Remove "' + itemName + '" from your list?')) return;
 
-    fetch(API_URL, {
+    fetchJSON(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'deleteItem', sheetRowNumber: sheetRowNumber })
     })
-      .then(function(res) { return res.json(); })
       .then(function(result) {
         if (result.error) throw new Error(result.error);
         showToast('✓ ' + itemName + ' removed');
@@ -620,8 +644,7 @@
   function loadTemplates() {
     document.getElementById('templateList').innerHTML = '<div class="loading">Loading items...</div>';
 
-    fetch(API_URL + '?action=getTemplates')
-      .then(function(res) { return res.json(); })
+    fetchJSON(API_URL + '?action=getTemplates')
       .then(function(templates) {
         if (templates.error) { throw new Error(templates.error); }
         currentTemplates = templates;
@@ -712,22 +735,20 @@
       notes: pendingTemplate.notes || ''
     };
 
-    fetch(API_URL, {
+    fetchJSON(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     })
-      .then(function(res) { return res.json(); })
       .then(function(result) {
+        if (result.error) throw new Error(result.error);
         closeModal();
         showToast('✓ ' + payload.name + ' added');
-        // refresh items list in background so "added" state updates
-        fetch(API_URL + '?action=getItems')
-          .then(function(res) { return res.json(); })
-          .then(function(items) {
-            currentItems = items;
-            renderTemplateList();
-          });
+        return fetchJSON(API_URL + '?action=getItems');
+      })
+      .then(function(items) {
+        currentItems = items;
+        renderTemplateList();
       })
       .catch(function(err) {
         closeModal();
