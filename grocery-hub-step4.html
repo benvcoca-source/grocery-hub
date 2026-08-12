@@ -508,7 +508,6 @@
       .then(function(result) {
         closeModal();
         showToast('✓ ' + payload.name + ' added');
-        loadItems().then ? null : null;
         // refresh items list in background so "added" state updates
         fetch(API_URL + '?action=getItems')
           .then(function(res) { return res.json(); })
