@@ -91,6 +91,19 @@
 
   .item-left .name { font-size: 15px; font-weight: 700; }
   .item-left .meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .item-left { cursor: pointer; }
+  .note-preview {
+    font-size: 11px; color: var(--gold); font-style: italic;
+    margin-top: 4px; opacity: 0.85;
+  }
+
+  .detail-row {
+    display: flex; justify-content: space-between; padding: 10px 0;
+    border-bottom: 1px solid var(--card-border); font-size: 13px;
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-label { color: var(--muted); font-weight: 700; }
+  .detail-value { color: var(--text); text-align: right; max-width: 60%; }
 
   .item-card { transition: opacity 0.2s; }
 
@@ -455,6 +468,21 @@
     </div>
   </div>
 
+  <!-- ITEM DETAIL MODAL -->
+  <div class="modal-overlay" id="detailModalOverlay">
+    <div class="modal-box">
+      <h3 id="detailItemName">Item</h3>
+      <div class="sub" id="detailItemSub">Category</div>
+
+      <div id="detailRows" style="margin-bottom: 16px;"></div>
+
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeDetailModal()">Close</button>
+        <button class="modal-btn confirm" onclick="editFromDetail()">Edit Item</button>
+      </div>
+    </div>
+  </div>
+
 <script>
   var API_URL = "https://script.google.com/macros/s/AKfycbytVlPk_mRoGplYQhABHgTJ-FFYqE1hBWOJMzOQTVzz2PwLHbPxvoeKm6bc4y78X8qx/exec";
 
@@ -560,11 +588,14 @@
     sorted.forEach(function(item) {
       var isPicked = (item.picked === 'TRUE' || item.picked === true);
       html += '<div class="item-card ' + (isPicked ? 'picked' : '') + '">';
-      html += '  <div class="item-checkbox-row" onclick="togglePicked(' + item.sheetRowNumber + ', ' + (isPicked ? 'true' : 'false') + ')">';
-      html += '    <div class="item-checkbox ' + (isPicked ? 'checked' : '') + '">' + (isPicked ? '✓' : '') + '</div>';
-      html += '    <div class="item-left">';
+      html += '  <div class="item-checkbox-row">';
+      html += '    <div class="item-checkbox ' + (isPicked ? 'checked' : '') + '" onclick="togglePicked(' + item.sheetRowNumber + ', ' + (isPicked ? 'true' : 'false') + ')">' + (isPicked ? '✓' : '') + '</div>';
+      html += '    <div class="item-left" onclick="openDetailModal(' + item.sheetRowNumber + ')">';
       html += '      <div class="name">' + item.name + '</div>';
       html += '      <div class="meta"><span class="week-badge">W' + item.week + '</span>' + (item.category || '') + ' - ' + (item.quantity || '-') + '</div>';
+      if (item.notes) {
+        html += '      <div class="note-preview">"' + item.notes + '"</div>';
+      }
       html += '    </div>';
       html += '  </div>';
       html += '  <div class="item-right">';
@@ -587,6 +618,51 @@
     document.getElementById('totalItems').textContent = items.length;
     document.getElementById('highCount').textContent = items.filter(function(i) { return i.priority === 'High'; }).length;
     document.getElementById('catCount').textContent = new Set(items.map(function(i) { return i.category; })).size;
+  }
+
+  // ---------- Detail view ----------
+  var pendingDetailRow = null;
+
+  function openDetailModal(sheetRowNumber) {
+    var item = currentItems.find(function(i) { return i.sheetRowNumber === sheetRowNumber; });
+    if (!item) return;
+
+    pendingDetailRow = sheetRowNumber;
+    document.getElementById('detailItemName').textContent = item.name;
+    document.getElementById('detailItemSub').textContent = item.category + ' · Week ' + item.week;
+
+    var rows = '';
+    rows += detailRow('Quantity', item.quantity || '—');
+    rows += detailRow('Priority', item.priority || '—');
+    rows += detailRow('Notes', item.notes || '—');
+    rows += detailRow('Picked up?', (item.picked === 'TRUE' || item.picked === true) ? 'Yes' : 'Not yet');
+
+    // These populate once the research report step is live - shown now so the
+    // structure is already there and ready
+    if (item.bestStore) rows += detailRow('Best Store', item.bestStore);
+    if (item.bestPrice) rows += detailRow('Best Price', item.bestPrice);
+    if (item.altStore) rows += detailRow('Alt Store', item.altStore);
+    if (item.altPrice) rows += detailRow('Alt Price', item.altPrice);
+    if (item.weeklySale) rows += detailRow('Weekly Sale', item.weeklySale);
+    if (item.priceValidWindow) rows += detailRow('Price Valid', item.priceValidWindow);
+
+    document.getElementById('detailRows').innerHTML = rows;
+    document.getElementById('detailModalOverlay').classList.add('active');
+  }
+
+  function detailRow(label, value) {
+    return '<div class="detail-row"><span class="detail-label">' + label + '</span><span class="detail-value">' + value + '</span></div>';
+  }
+
+  function closeDetailModal() {
+    document.getElementById('detailModalOverlay').classList.remove('active');
+    pendingDetailRow = null;
+  }
+
+  function editFromDetail() {
+    var row = pendingDetailRow;
+    closeDetailModal();
+    openEditModalByRow(row);
   }
 
   // ---------- Edit ----------
