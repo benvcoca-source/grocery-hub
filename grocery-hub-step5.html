@@ -154,6 +154,15 @@
 
   .item-delete:active { background: var(--orange); color: #0f1419; }
 
+  .item-edit {
+    background: rgba(0,217,255,0.12); color: var(--cyan);
+    border: none; width: 26px; height: 26px; border-radius: 50%;
+    font-size: 12px; font-weight: 900; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .item-edit:active { background: var(--cyan); color: #0f1419; }
+
   .empty, .loading, .error { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
   .error { color: var(--orange); }
 
@@ -420,6 +429,32 @@
     </div>
   </div>
 
+  <!-- EDIT ITEM MODAL -->
+  <div class="modal-overlay" id="editModalOverlay">
+    <div class="modal-box">
+      <h3 id="editItemName">Item</h3>
+      <div class="sub" id="editItemCategory">Category</div>
+
+      <label>Quantity</label>
+      <input type="text" id="editQty" placeholder="e.g., 2 lbs">
+
+      <label>Priority</label>
+      <select id="editPriority">
+        <option value="High">High</option>
+        <option value="Medium">Medium</option>
+        <option value="Low">Low</option>
+      </select>
+
+      <label>Notes</label>
+      <input type="text" id="editNotes" placeholder="e.g., organic, on sale only">
+
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeEditModal()">Cancel</button>
+        <button class="modal-btn confirm" onclick="confirmEdit()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
 <script>
   var API_URL = "https://script.google.com/macros/s/AKfycbytVlPk_mRoGplYQhABHgTJ-FFYqE1hBWOJMzOQTVzz2PwLHbPxvoeKm6bc4y78X8qx/exec";
 
@@ -534,7 +569,10 @@
       html += '  </div>';
       html += '  <div class="item-right">';
       html += '    <div class="priority-badge priority-' + item.priority + '">' + item.priority + '</div>';
-      html += '    <button class="item-delete" onclick="deleteItem(' + item.sheetRowNumber + ', \'' + item.name.replace(/'/g, "\\'") + '\')">✕</button>';
+      html += '    <div style="display:flex; gap:6px;">';
+      html += '      <button class="item-edit" onclick="openEditModalByRow(' + item.sheetRowNumber + ')">✎</button>';
+      html += '      <button class="item-delete" onclick="deleteItem(' + item.sheetRowNumber + ', \'' + item.name.replace(/'/g, "\\'") + '\')">✕</button>';
+      html += '    </div>';
       html += '  </div>';
       html += '</div>';
     });
@@ -549,6 +587,60 @@
     document.getElementById('totalItems').textContent = items.length;
     document.getElementById('highCount').textContent = items.filter(function(i) { return i.priority === 'High'; }).length;
     document.getElementById('catCount').textContent = new Set(items.map(function(i) { return i.category; })).size;
+  }
+
+  // ---------- Edit ----------
+  var pendingEditRow = null;
+
+  function openEditModalByRow(sheetRowNumber) {
+    var item = currentItems.find(function(i) { return i.sheetRowNumber === sheetRowNumber; });
+    if (!item) return;
+
+    pendingEditRow = sheetRowNumber;
+    document.getElementById('editItemName').textContent = item.name;
+    document.getElementById('editItemCategory').textContent = item.category + ' · Week ' + item.week;
+    document.getElementById('editQty').value = item.quantity || '';
+    document.getElementById('editPriority').value = item.priority || 'Medium';
+    document.getElementById('editNotes').value = item.notes || '';
+    document.getElementById('editModalOverlay').classList.add('active');
+  }
+
+  function closeEditModal() {
+    document.getElementById('editModalOverlay').classList.remove('active');
+    pendingEditRow = null;
+  }
+
+  function confirmEdit() {
+    if (!pendingEditRow) return;
+
+    var payload = {
+      action: 'updateItem',
+      sheetRowNumber: pendingEditRow,
+      quantity: document.getElementById('editQty').value.trim(),
+      priority: document.getElementById('editPriority').value,
+      notes: document.getElementById('editNotes').value.trim()
+    };
+
+    fetchJSON(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    })
+      .then(function(result) {
+        if (result.error) throw new Error(result.error);
+        closeEditModal();
+        showToast('✓ Changes saved');
+        return fetchJSON(API_URL + '?action=getItems');
+      })
+      .then(function(items) {
+        currentItems = items;
+        renderItems(items);
+        renderTemplateList();
+      })
+      .catch(function(err) {
+        closeEditModal();
+        alert('Could not save changes: ' + err.message);
+      });
   }
 
   // ---------- Manual Add ----------
@@ -682,17 +774,21 @@
       ? currentTemplates
       : currentTemplates.filter(function(t) { return t.category === activeCategory; });
 
-    var addedNames = currentItems
+    var addedItemsMap = {};
+    currentItems
       .filter(function(i) { return parseInt(i.week) === currentWeek; })
-      .map(function(i) { return i.name; });
+      .forEach(function(i) { addedItemsMap[i.name] = i.sheetRowNumber; });
 
     var html = '';
     filtered.forEach(function(t) {
-      var isAdded = addedNames.indexOf(t.name) !== -1;
-      html += '<div class="template-row ' + (isAdded ? 'added' : '') + '" onclick="' + (isAdded ? '' : 'openModal(\'' + t.name.replace(/'/g, "\\'") + '\')') + '">';
+      var isAdded = addedItemsMap.hasOwnProperty(t.name);
+      var clickAction = isAdded
+        ? 'openEditModalByRow(' + addedItemsMap[t.name] + ')'
+        : 'openModal(\'' + t.name.replace(/'/g, "\\'") + '\')';
+      html += '<div class="template-row ' + (isAdded ? 'added' : '') + '" onclick="' + clickAction + '">';
       html += '  <div>';
       html += '    <div class="t-name">' + t.name + '</div>';
-      html += '    <div class="t-meta">' + t.category + ' · usually ' + t.typicalQty + (t.notes ? ' · ' + t.notes : '') + '</div>';
+      html += '    <div class="t-meta">' + t.category + ' · usually ' + t.typicalQty + (t.notes ? ' · ' + t.notes : '') + (isAdded ? ' · tap to edit' : '') + '</div>';
       html += '  </div>';
       html += '  <button class="add-btn-small">' + (isAdded ? '✓' : '+') + '</button>';
       html += '</div>';
