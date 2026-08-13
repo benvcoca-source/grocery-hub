@@ -253,11 +253,20 @@
   .store-count { font-size: 11px; color: var(--muted); }
 
   .store-item-row {
-    display: flex; justify-content: space-between; font-size: 13px;
-    padding: 5px 0; color: var(--text);
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+    padding: 7px 0; color: var(--text);
   }
 
+  .store-item-row .row-name { flex: 1; }
   .store-item-row .price { color: var(--mint); font-weight: 700; }
+
+  .store-item-row.picked-row {
+    opacity: 0.5;
+  }
+
+  .store-item-row.picked-row .row-name {
+    text-decoration: line-through;
+  }
 
   .maps-link-btn {
     display: block; margin-top: 12px; text-align: center;
@@ -1066,14 +1075,20 @@
       var items = groups[store];
       var address = STORE_ADDRESSES[store.toLowerCase()] || (store + ' near Oakville ON L6L 6X6');
       var mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address);
+      var pickedInStore = items.filter(function(i) { return i.picked === 'TRUE' || i.picked === true; }).length;
 
       html += '<div class="store-group">';
       html += '  <div class="store-group-header">';
       html += '    <div class="store-name">' + store + '</div>';
-      html += '    <div class="store-count">' + items.length + ' item' + (items.length > 1 ? 's' : '') + '</div>';
+      html += '    <div class="store-count">' + pickedInStore + ' of ' + items.length + ' picked</div>';
       html += '  </div>';
       items.forEach(function(item) {
-        html += '  <div class="store-item-row"><span>' + item.name + '</span><span class="price">' + (item.bestPrice || '') + '</span></div>';
+        var isPicked = (item.picked === 'TRUE' || item.picked === true);
+        html += '  <div class="store-item-row ' + (isPicked ? 'picked-row' : '') + '">';
+        html += '    <div class="item-checkbox ' + (isPicked ? 'checked' : '') + '" onclick="toggleRoutePicked(' + item.sheetRowNumber + ')">' + (isPicked ? '✓' : '') + '</div>';
+        html += '    <span class="row-name">' + item.name + '</span>';
+        html += '    <span class="price">' + (item.bestPrice || '') + '</span>';
+        html += '  </div>';
       });
       html += '  <a class="maps-link-btn" href="' + mapsUrl + '" target="_blank">📍 Open Directions</a>';
       html += '</div>';
@@ -1083,12 +1098,40 @@
       html += '<div class="store-group">';
       html += '  <div class="store-group-header"><div class="store-name" style="color: var(--muted);">No store assigned yet</div></div>';
       unpriced.forEach(function(item) {
-        html += '  <div class="store-item-row"><span>' + item.name + '</span><span></span></div>';
+        var isPicked = (item.picked === 'TRUE' || item.picked === true);
+        html += '  <div class="store-item-row ' + (isPicked ? 'picked-row' : '') + '">';
+        html += '    <div class="item-checkbox ' + (isPicked ? 'checked' : '') + '" onclick="toggleRoutePicked(' + item.sheetRowNumber + ')">' + (isPicked ? '✓' : '') + '</div>';
+        html += '    <span class="row-name">' + item.name + '</span>';
+        html += '    <span class="price"></span>';
+        html += '  </div>';
       });
       html += '</div>';
     }
 
     container.innerHTML = html;
+  }
+
+  function toggleRoutePicked(sheetRowNumber) {
+    var item = currentItems.find(function(i) { return i.sheetRowNumber === sheetRowNumber; });
+    if (!item) return;
+
+    var newPicked = !(item.picked === 'TRUE' || item.picked === true);
+    item.picked = newPicked ? 'TRUE' : 'FALSE';
+    renderRoute(); // instant visual feedback
+
+    fetchJSON(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'togglePicked', sheetRowNumber: sheetRowNumber, picked: newPicked })
+    })
+      .then(function(result) {
+        if (result.error) throw new Error(result.error);
+      })
+      .catch(function(err) {
+        item.picked = newPicked ? 'FALSE' : 'TRUE'; // revert on failure
+        renderRoute();
+        alert('Could not update item: ' + err.message);
+      });
   }
 
   // ---------- Manual Add ----------
