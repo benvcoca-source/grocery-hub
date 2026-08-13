@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Grocery Hub</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0f1419;
+    --card: #1a2332;
+    --card-border: #26324a;
+    --cyan: #00d9ff;
+    --orange: #ff6b35;
+    --gold: #ffd60a;
+    --mint: #06d6a0;
+    --text: #ffffff;
+    --muted: #8892b0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    padding-bottom: 90px;
+  }
+
+  .topbar {
+    background: linear-gradient(135deg, #4c4ce0 0%, #6b3fd4 100%);
+    padding: 20px 20px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .topbar h1 { font-size: 20px; font-weight: 800; letter-spacing: 0.5px; }
+
+  .topbar .status-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--muted);
+  }
+
+  .topbar .status-dot.connected {
+    background: var(--mint);
+    box-shadow: 0 0 8px var(--mint);
+  }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ---------- Dashboard ---------- */
+  .hero { padding: 24px 20px 8px; }
+  .hero-title { font-size: 30px; font-weight: 900; line-height: 1.1; }
+  .hero-title .accent { color: var(--cyan); }
+  .hero-sub {
+    color: var(--muted); font-size: 13px; margin-top: 6px;
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+
+  .stats-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 20px 20px 0;
+  }
+
+  .savings-banner {
+    margin: 14px 20px 0;
+    padding: 16px;
+    border-radius: 14px;
+    display: none;
+  }
+
+  .savings-banner.under {
+    background: rgba(6,214,160,0.1);
+    border: 1px solid var(--mint);
+  }
+
+  .savings-banner.over {
+    background: rgba(255,107,53,0.1);
+    border: 1px solid var(--orange);
+  }
+
+  .savings-banner .big {
+    font-size: 22px;
+    font-weight: 900;
+  }
+
+  .savings-banner.under .big { color: var(--mint); }
+  .savings-banner.over .big { color: var(--orange); }
+
+  .savings-banner .sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .stat-box {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 16px 10px; text-align: center;
+  }
+
+  .stat-box .num { font-size: 26px; font-weight: 900; color: var(--cyan); }
+  .stat-box .label {
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-top: 4px;
+  }
+
+  .section-title {
+    padding: 8px 20px; font-size: 12px; font-weight: 800; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+
+  .cards { display: flex; flex-direction: column; gap: 10px; padding: 0 20px 20px; }
+
+  .item-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 14px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .item-left .name { font-size: 15px; font-weight: 700; }
+  .item-left .meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .item-left { cursor: pointer; }
+  .note-preview {
+    font-size: 11px; color: var(--gold); font-style: italic;
+    margin-top: 4px; opacity: 0.85;
+  }
+
+  .price-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(6,214,160,0.12); color: var(--mint);
+    font-size: 11px; font-weight: 800; padding: 3px 8px;
+    border-radius: 6px; margin-top: 5px;
+  }
+
+  .detail-row {
+    display: flex; justify-content: space-between; padding: 10px 0;
+    border-bottom: 1px solid var(--card-border); font-size: 13px;
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-label { color: var(--muted); font-weight: 700; }
+  .detail-value { color: var(--text); text-align: right; max-width: 60%; }
+
+  .item-card { transition: opacity 0.2s; }
+
+  .item-card.picked {
+    opacity: 0.5;
+  }
+
+  .item-card.picked .item-left .name {
+    text-decoration: line-through;
+  }
+
+  .item-checkbox-row {
+    display: flex; align-items: center; gap: 12px; flex: 1;
+  }
+
+  .item-checkbox {
+    flex: 0 0 auto;
+    width: 24px; height: 24px; border-radius: 7px;
+    border: 2px solid var(--card-border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 900; color: transparent;
+    cursor: pointer;
+  }
+
+  .item-checkbox.checked {
+    background: var(--mint); border-color: var(--mint); color: #0f1419;
+  }
+
+  .picked-progress {
+    padding: 0 20px 12px;
+    font-size: 12px; color: var(--muted);
+  }
+
+  .picked-progress-bar {
+    height: 6px; background: var(--card-border); border-radius: 4px;
+    margin-top: 6px; overflow: hidden;
+  }
+
+  .picked-progress-fill {
+    height: 100%; background: var(--mint); border-radius: 4px; transition: width 0.3s;
+  }
+
+  .week-badge {
+    display: inline-block; background: rgba(0,217,255,0.12); color: var(--cyan);
+    font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 6px; margin-right: 6px;
+  }
+
+  .priority-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 6px; }
+  .priority-High { background: rgba(255,107,53,0.15); color: var(--orange); }
+  .priority-Medium { background: rgba(255,214,10,0.15); color: var(--gold); }
+  .priority-Low { background: rgba(6,214,160,0.15); color: var(--mint); }
+
+  .item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+  .item-delete {
+    background: rgba(255,107,53,0.12); color: var(--orange);
+    border: none; width: 26px; height: 26px; border-radius: 50%;
+    font-size: 14px; font-weight: 900; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .item-delete:active { background: var(--orange); color: #0f1419; }
+
+  .item-edit {
+    background: rgba(0,217,255,0.12); color: var(--cyan);
+    border: none; width: 26px; height: 26px; border-radius: 50%;
+    font-size: 12px; font-weight: 900; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .item-edit:active { background: var(--cyan); color: #0f1419; }
+
+  .empty, .loading, .error { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
+  .error { color: var(--orange); }
+
+  .refresh-btn {
+    margin: 0 20px 20px; width: calc(100% - 40px); background: var(--cyan);
+    color: #0f1419; border: none; padding: 14px; border-radius: 12px;
+    font-weight: 800; font-size: 13px; text-transform: uppercase;
+    letter-spacing: 0.5px; cursor: pointer;
+  }
+
+  .refresh-btn:active { opacity: 0.8; }
+
+  /* ---------- Add Items screen ---------- */
+  .add-header { padding: 20px; }
+  .add-header h2 { font-size: 22px; font-weight: 900; }
+  .add-header p { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  .manual-add-btn {
+    margin-top: 14px; width: 100%; background: none; border: 2px dashed var(--card-border);
+    color: var(--cyan); padding: 12px; border-radius: 12px; font-weight: 800;
+    font-size: 12px; text-transform: uppercase; cursor: pointer;
+  }
+
+  .manual-add-btn:active { background: rgba(0,217,255,0.08); }
+
+  .store-group {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 16px; margin-bottom: 12px;
+  }
+
+  .store-group-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--card-border);
+  }
+
+  .store-name { font-size: 16px; font-weight: 900; color: var(--cyan); }
+  .store-count { font-size: 11px; color: var(--muted); }
+
+  .store-item-row {
+    display: flex; justify-content: space-between; font-size: 13px;
+    padding: 5px 0; color: var(--text);
+  }
+
+  .store-item-row .price { color: var(--mint); font-weight: 700; }
+
+  .maps-link-btn {
+    display: block; margin-top: 12px; text-align: center;
+    background: rgba(0,217,255,0.1); color: var(--cyan);
+    padding: 10px; border-radius: 10px; font-size: 12px;
+    font-weight: 800; text-decoration: none; text-transform: uppercase;
+  }
+
+  .maps-link-btn:active { background: rgba(0,217,255,0.2); }
+
+  .history-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 14px 16px; margin-bottom: 10px;
+  }
+
+  .history-card-top {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+  }
+
+  .history-week { font-size: 14px; font-weight: 900; }
+  .history-adherence {
+    font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px;
+    text-transform: uppercase;
+  }
+  .history-adherence.under { background: rgba(6,214,160,0.15); color: var(--mint); }
+  .history-adherence.over { background: rgba(255,107,53,0.15); color: var(--orange); }
+
+  .history-bar-row { margin-bottom: 6px; }
+  .history-bar-label {
+    display: flex; justify-content: space-between; font-size: 11px;
+    color: var(--muted); margin-bottom: 3px;
+  }
+  .history-bar-track {
+    height: 8px; background: #0f1419; border-radius: 4px; overflow: hidden;
+  }
+  .history-bar-fill { height: 100%; border-radius: 4px; }
+  .history-bar-fill.actual { background: var(--cyan); }
+  .history-bar-fill.budget { background: var(--card-border); }
+
+  .history-savings { font-size: 12px; margin-top: 8px; font-weight: 700; }
+  .history-savings.positive { color: var(--mint); }
+  .history-savings.negative { color: var(--orange); }
+
+  .history-summary {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 16px; margin-bottom: 16px; text-align: center;
+  }
+  .history-summary .big { font-size: 26px; font-weight: 900; color: var(--mint); }
+  .history-summary .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .category-chips {
+    display: flex; gap: 8px; padding: 0 20px 16px; overflow-x: auto;
+  }
+
+  .chip {
+    flex: 0 0 auto;
+    background: var(--card); border: 1px solid var(--card-border);
+    color: var(--muted); padding: 8px 16px; border-radius: 20px;
+    font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  }
+
+  .chip.active {
+    background: var(--cyan); color: #0f1419; border-color: var(--cyan);
+  }
+
+  .template-list { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
+
+  .template-row {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 12px; padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer;
+  }
+
+  .template-row.added {
+    border-color: var(--mint);
+    background: rgba(6,214,160,0.08);
+  }
+
+  .template-row .t-name { font-size: 14px; font-weight: 700; }
+  .template-row .t-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .add-btn-small {
+    background: rgba(0,217,255,0.12); color: var(--cyan);
+    border: none; width: 32px; height: 32px; border-radius: 50%;
+    font-size: 18px; font-weight: 900; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .template-row.added .add-btn-small {
+    background: var(--mint); color: #0f1419;
+  }
+
+  /* ---------- Bottom Nav ---------- */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #141b28; border-top: 1px solid var(--card-border);
+    display: flex; padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+
+  .nav-btn {
+    flex: 1; background: none; border: none; color: var(--muted);
+    padding: 8px 4px; font-size: 11px; font-weight: 700;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer;
+  }
+
+  .nav-btn .icon { font-size: 20px; }
+  .nav-btn.active { color: var(--cyan); }
+
+  /* ---------- Quantity modal ---------- */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 30; align-items: flex-end; justify-content: center;
+  }
+
+  .modal-overlay.active { display: flex; }
+
+  .modal-box {
+    background: var(--card); border-radius: 20px 20px 0 0;
+    padding: 24px 20px max(24px, env(safe-area-inset-bottom));
+    width: 100%; max-width: 480px;
+  }
+
+  .modal-box h3 { font-size: 18px; font-weight: 800; margin-bottom: 4px; }
+  .modal-box .sub { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+
+  .modal-box label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 6px; display: block;
+  }
+
+  .modal-box input, .modal-box select {
+    width: 100%; background: #0f1419; border: 1px solid var(--card-border);
+    color: var(--text); padding: 12px; border-radius: 10px; font-size: 14px;
+    margin-bottom: 14px;
+  }
+
+  .modal-actions { display: flex; gap: 10px; }
+
+  .modal-btn {
+    flex: 1; padding: 14px; border-radius: 12px; border: none;
+    font-weight: 800; font-size: 13px; text-transform: uppercase; cursor: pointer;
+  }
+
+  .modal-btn.cancel { background: #26324a; color: var(--text); }
+  .modal-btn.confirm { background: var(--cyan); color: #0f1419; }
+
+  .flipp-btn {
+    width: 100%; margin-top: 10px; background: none;
+    border: 2px dashed var(--gold); color: var(--gold);
+    padding: 12px; border-radius: 12px; font-weight: 800;
+    font-size: 12px; text-transform: uppercase; cursor: pointer;
+  }
+
+  .flipp-btn:active { background: rgba(255,214,10,0.08); }
+
+  .toast {
+    position: fixed; top: 90px; left: 50%; transform: translateX(-50%);
+    background: var(--mint); color: #0f1419; padding: 10px 20px;
+    border-radius: 10px; font-size: 13px; font-weight: 800;
+    z-index: 40; display: none;
+  }
+
+  .toast.show { display: block; }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>🛒 Grocery Hub</h1>
+    <div class="status-dot" id="statusDot"></div>
+  </div>
+
+  <div class="toast" id="toast">Added!</div>
+
+  <!-- DASHBOARD SCREEN -->
+  <div class="screen active" id="screen-dashboard">
+    <div class="hero">
+      <div class="hero-title">WEEK <span class="accent" id="weekNum">—</span></div>
+      <div class="hero-sub" id="lastUpdated">Connecting...</div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="num" id="totalItems">—</div>
+        <div class="label">Items</div>
+      </div>
+      <div class="stat-box">
+        <div class="num" id="highCount">—</div>
+        <div class="label">High Priority</div>
+      </div>
+      <div class="stat-box">
+        <div class="num" id="estTotal">—</div>
+        <div class="label">Est. Total</div>
+      </div>
+    </div>
+
+    <div class="savings-banner" id="savingsBanner">
+      <div class="big" id="savingsBig">—</div>
+      <div class="sub" id="savingsSub">vs your $300 weekly budget</div>
+    </div>
+
+    <div class="section-title">Your Grocery List</div>
+    <div class="picked-progress" id="pickedProgress" style="display:none;">
+      <span id="pickedText">0 of 0 picked</span>
+      <div class="picked-progress-bar"><div class="picked-progress-fill" id="pickedFill" style="width:0%;"></div></div>
+    </div>
+    <div class="cards" id="itemsContainer">
+      <div class="loading">Loading your list...</div>
+    </div>
+
+    <button class="refresh-btn" onclick="loadItems()">↻ Refresh</button>
+  </div>
+
+  <!-- ADD ITEMS SCREEN -->
+  <div class="screen" id="screen-add">
+    <div class="add-header">
+      <h2>Quick Add</h2>
+      <p>Tap a category, then tap items to add them to Week <span id="addWeekLabel">1</span></p>
+      <button class="manual-add-btn" onclick="openManualModal()">✏️ Add Custom Item</button>
+    </div>
+
+    <div class="category-chips" id="categoryChips"></div>
+
+    <div class="template-list" id="templateList">
+      <div class="loading">Loading items...</div>
+    </div>
+  </div>
+
+  <!-- ROUTE SCREEN -->
+  <div class="screen" id="screen-route">
+    <div class="add-header">
+      <h2>🗺️ Shopping Route</h2>
+      <p>Your list grouped by store, with directions</p>
+    </div>
+    <div id="routeContainer" class="template-list">
+      <div class="loading">Building your route...</div>
+    </div>
+  </div>
+
+  <!-- HISTORY SCREEN -->
+  <div class="screen" id="screen-history">
+    <div class="add-header">
+      <h2>📈 Spending History</h2>
+      <p>Budget adherence and savings over time</p>
+    </div>
+    <div id="historyContainer" class="template-list">
+      <div class="loading">Loading history...</div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button class="nav-btn active" id="nav-dashboard" onclick="showScreen('dashboard')">
+      <span class="icon">📊</span> Dashboard
+    </button>
+    <button class="nav-btn" id="nav-add" onclick="showScreen('add')">
+      <span class="icon">➕</span> Add Items
+    </button>
+    <button class="nav-btn" id="nav-route" onclick="showScreen('route')">
+      <span class="icon">🗺️</span> Route
+    </button>
+    <button class="nav-btn" id="nav-history" onclick="showScreen('history')">
+      <span class="icon">📈</span> History
+    </button>
+  </div>
+
+  <!-- QUANTITY MODAL -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-box">
+      <h3 id="modalItemName">Item</h3>
+      <div class="sub" id="modalItemCategory">Category</div>
+
+      <label>Quantity</label>
+      <input type="text" id="modalQty" placeholder="e.g., 2 lbs">
+
+      <label>Priority</label>
+      <select id="modalPriority">
+        <option value="High">High</option>
+        <option value="Medium" selected>Medium</option>
+        <option value="Low">Low</option>
+      </select>
+
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeModal()">Cancel</button>
+        <button class="modal-btn confirm" onclick="confirmAdd()">Add to List</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MANUAL ADD MODAL -->
+  <div class="modal-overlay" id="manualModalOverlay">
+    <div class="modal-box">
+      <h3>Add Custom Item</h3>
+      <div class="sub">Not on the list? Add it here.</div>
+
+      <label>Item Name</label>
+      <input type="text" id="manualName" placeholder="e.g., Salmon Fillets">
+
+      <label>Category</label>
+      <select id="manualCategory">
+        <option value="Dairy">Dairy</option>
+        <option value="Fruits">Fruits</option>
+        <option value="Vegetables">Vegetables</option>
+        <option value="Meat">Meat</option>
+        <option value="Pantry">Pantry</option>
+        <option value="Frozen">Frozen</option>
+        <option value="Snacks">Snacks</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label>Quantity</label>
+      <input type="text" id="manualQty" placeholder="e.g., 2 lbs">
+
+      <label>Priority</label>
+      <select id="manualPriority">
+        <option value="High">High</option>
+        <option value="Medium" selected>Medium</option>
+        <option value="Low">Low</option>
+      </select>
+
+      <label>Notes (optional)</label>
+      <input type="text" id="manualNotes" placeholder="e.g., wild-caught, on sale only">
+
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeManualModal()">Cancel</button>
+        <button class="modal-btn confirm" onclick="confirmManualAdd()">Add to List</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT ITEM MODAL -->
+  <div class="modal-overlay" id="editModalOverlay">
+    <div class="modal-box">
+      <h3 id="editItemName">Item</h3>
+      <div class="sub" id="editItemCategory">Category</div>
+
+      <label>Quantity</label>
+      <input type="text" id="editQty" placeholder="e.g., 2 lbs">
+
+      <label>Priority</label>
+      <select id="editPriority">
+        <option value="High">High</option>
+        <option value="Medium">Medium</option>
+        <option value="Low">Low</option>
+      </select>
+
+      <label>Notes</label>
+      <input type="text" id="editNotes" placeholder="e.g., organic, on sale only">
+
+      <label>Best Store</label>
+      <input type="text" id="editBestStore" placeholder="e.g., Costco">
+
+      <label>Best Price</label>
+      <input type="text" id="editBestPrice" placeholder="e.g., $4.99">
+
+      <label>Alt Store</label>
+      <input type="text" id="editAltStore" placeholder="e.g., Metro">
+
+      <label>Alt Price</label>
+      <input type="text" id="editAltPrice" placeholder="e.g., $5.49">
+
+      <label>Weekly Sale?</label>
+      <select id="editWeeklySale">
+        <option value="">—</option>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+
+      <label>Price Valid Window</label>
+      <input type="text" id="editValidWindow" placeholder="e.g., Aug 13-19">
+
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeEditModal()">Cancel</button>
+        <button class="modal-btn confirm" onclick="confirmEdit()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ITEM DETAIL MODAL -->
+  <div class="modal-overlay" id="detailModalOverlay">
+    <div class="modal-box">
+      <h3 id="detailItemName">Item</h3>
+      <div class="sub" id="detailItemSub">Category</div>
+
+      <div id="detailRows" style="margin-bottom: 16px;"></div>
+
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeDetailModal()">Close</button>
+        <button class="modal-btn confirm" onclick="editFromDetail()">Edit Item</button>
+      </div>
+      <button class="flipp-btn" id="flippBtn" onclick="openFlipp()">🔍 Check Price on Flipp</button>
+    </div>
+  </div>
+
+<script>
+  var API_URL = "https://script.google.com/macros/s/AKfycbytVlPk_mRoGplYQhABHgTJ-FFYqE1hBWOJMzOQTVzz2PwLHbPxvoeKm6bc4y78X8qx/exec";
+
+  var currentItems = [];
+  var currentTemplates = [];
+  var activeCategory = 'All';
+  var pendingTemplate = null;
+  var currentWeek = 1;
+
+  // Robust fetch wrapper: retries once automatically if Google's server
+  // returns a temporary HTML page instead of JSON (common cold-start issue)
+  function fetchJSON(url, options, retryDelay) {
+    retryDelay = retryDelay || 900;
+    return fetch(url, options)
+      .then(function(res) { return res.text(); })
+      .then(function(text) {
+        try {
+          return JSON.parse(text);
+        } catch (parseErr) {
+          // Not valid JSON - wait briefly and try once more
+          return new Promise(function(resolve, reject) {
+            setTimeout(function() {
+              fetch(url, options)
+                .then(function(res2) { return res2.text(); })
+                .then(function(text2) {
+                  try {
+                    resolve(JSON.parse(text2));
+                  } catch (parseErr2) {
+                    reject(new Error('Server is temporarily unavailable. Please try again in a moment.'));
+                  }
+                })
+                .catch(reject);
+            }, retryDelay);
+          });
+        }
+      });
+  }
+
+  // ---------- Navigation ----------
+  function showScreen(name) {
+    document.getElementById('screen-dashboard').classList.remove('active');
+    document.getElementById('screen-add').classList.remove('active');
+    document.getElementById('screen-route').classList.remove('active');
+    document.getElementById('screen-history').classList.remove('active');
+    document.getElementById('nav-dashboard').classList.remove('active');
+    document.getElementById('nav-add').classList.remove('active');
+    document.getElementById('nav-route').classList.remove('active');
+    document.getElementById('nav-history').classList.remove('active');
+
+    document.getElementById('screen-' + name).classList.add('active');
+    document.getElementById('nav-' + name).classList.add('active');
+
+    if (name === 'add' && currentTemplates.length === 0) {
+      loadTemplates();
+    }
+    if (name === 'route') {
+      renderRoute();
+    }
+    if (name === 'history') {
+      loadHistory();
+    }
+  }
+
+  // ---------- Dashboard ----------
+  function loadItems() {
+    document.getElementById('itemsContainer').innerHTML = '<div class="loading">Loading your list...</div>';
+    document.getElementById('lastUpdated').textContent = 'Connecting...';
+    document.getElementById('statusDot').classList.remove('connected');
+
+    fetchJSON(API_URL + '?action=getItems')
+      .then(function(items) {
+        if (items.error) { throw new Error(items.error); }
+        currentItems = items;
+        if (items.length > 0) {
+          var weeks = items.map(function(i) { return parseInt(i.week) || 1; });
+          currentWeek = Math.max.apply(null, weeks);
+        }
+        document.getElementById('addWeekLabel').textContent = currentWeek;
+        renderItems(items);
+        document.getElementById('statusDot').classList.add('connected');
+        var now = new Date();
+        document.getElementById('lastUpdated').textContent =
+          'Synced ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      })
+      .catch(function(err) {
+        document.getElementById('itemsContainer').innerHTML =
+          '<div class="error">Could not load data.<br>' + err.message + '</div>';
+        document.getElementById('lastUpdated').textContent = 'Connection failed';
+      });
+  }
+
+  function renderItems(items) {
+    var container = document.getElementById('itemsContainer');
+
+    if (!items || items.length === 0) {
+      container.innerHTML = '<div class="empty">No items yet. Tap "Add Items" below.</div>';
+      document.getElementById('totalItems').textContent = '0';
+      document.getElementById('highCount').textContent = '0';
+      document.getElementById('estTotal').textContent = '—';
+      document.getElementById('weekNum').textContent = '-';
+      document.getElementById('pickedProgress').style.display = 'none';
+      document.getElementById('savingsBanner').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('weekNum').textContent = currentWeek;
+
+    var sorted = items.slice().sort(function(a, b) {
+      var order = { High: 0, Medium: 1, Low: 2 };
+      return order[a.priority] - order[b.priority];
+    });
+
+    var html = '';
+    sorted.forEach(function(item) {
+      var isPicked = (item.picked === 'TRUE' || item.picked === true);
+      html += '<div class="item-card ' + (isPicked ? 'picked' : '') + '">';
+      html += '  <div class="item-checkbox-row">';
+      html += '    <div class="item-checkbox ' + (isPicked ? 'checked' : '') + '" onclick="togglePicked(' + item.sheetRowNumber + ', ' + (isPicked ? 'true' : 'false') + ')">' + (isPicked ? '✓' : '') + '</div>';
+      html += '    <div class="item-left" onclick="openDetailModal(' + item.sheetRowNumber + ')">';
+      html += '      <div class="name">' + item.name + '</div>';
+      html += '      <div class="meta"><span class="week-badge">W' + item.week + '</span>' + (item.category || '') + ' - ' + (item.quantity || '-') + '</div>';
+      if (item.notes) {
+        html += '      <div class="note-preview">"' + item.notes + '"</div>';
+      }
+      if (item.bestPrice) {
+        html += '      <div class="price-badge">💰 ' + item.bestStore + ' ' + item.bestPrice + '</div>';
+      }
+      html += '    </div>';
+      html += '  </div>';
+      html += '  <div class="item-right">';
+      html += '    <div class="priority-badge priority-' + item.priority + '">' + item.priority + '</div>';
+      html += '    <div style="display:flex; gap:6px;">';
+      html += '      <button class="item-edit" onclick="openEditModalByRow(' + item.sheetRowNumber + ')">✎</button>';
+      html += '      <button class="item-delete" onclick="deleteItem(' + item.sheetRowNumber + ', \'' + item.name.replace(/'/g, "\\'") + '\')">✕</button>';
+      html += '    </div>';
+      html += '  </div>';
+      html += '</div>';
+    });
+    container.innerHTML = html;
+
+    var pickedCount = items.filter(function(i) { return i.picked === 'TRUE' || i.picked === true; }).length;
+    var pctPicked = items.length > 0 ? Math.round((pickedCount / items.length) * 100) : 0;
+    document.getElementById('pickedProgress').style.display = 'block';
+    document.getElementById('pickedText').textContent = pickedCount + ' of ' + items.length + ' picked';
+    document.getElementById('pickedFill').style.width = pctPicked + '%';
+
+    document.getElementById('totalItems').textContent = items.length;
+    document.getElementById('highCount').textContent = items.filter(function(i) { return i.priority === 'High'; }).length;
+
+    var total = 0;
+    var pricedCount = 0;
+    items.forEach(function(i) {
+      if (i.bestPrice) {
+        var num = parseFloat(String(i.bestPrice).replace(/[^0-9.]/g, ''));
+        if (!isNaN(num)) { total += num; pricedCount++; }
+      }
+    });
+    document.getElementById('estTotal').textContent = pricedCount > 0 ? '$' + total.toFixed(0) : '—';
+
+    var banner = document.getElementById('savingsBanner');
+    var budget = 300;
+    if (pricedCount > 0) {
+      var diff = budget - total;
+      var pct = Math.abs(Math.round((diff / budget) * 100));
+      banner.style.display = 'block';
+      if (diff >= 0) {
+        banner.className = 'savings-banner under';
+        document.getElementById('savingsBig').textContent = '💰 Saving $' + diff.toFixed(0) + ' this week';
+        document.getElementById('savingsSub').textContent = pct + '% under your $300 budget · ' + pricedCount + ' of ' + items.length + ' items priced';
+      } else {
+        banner.className = 'savings-banner over';
+        document.getElementById('savingsBig').textContent = '⚠️ $' + Math.abs(diff).toFixed(0) + ' over budget';
+        document.getElementById('savingsSub').textContent = pct + '% over your $300 budget · ' + pricedCount + ' of ' + items.length + ' items priced';
+      }
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  // ---------- Detail view ----------
+  var pendingDetailRow = null;
+
+  function openDetailModal(sheetRowNumber) {
+    var item = currentItems.find(function(i) { return i.sheetRowNumber === sheetRowNumber; });
+    if (!item) return;
+
+    pendingDetailRow = sheetRowNumber;
+    document.getElementById('detailItemName').textContent = item.name;
+    document.getElementById('detailItemSub').textContent = item.category + ' · Week ' + item.week;
+
+    var rows = '';
+    rows += detailRow('Quantity', item.quantity || '—');
+    rows += detailRow('Priority', item.priority || '—');
+    rows += detailRow('Notes', item.notes || '—');
+    rows += detailRow('Picked up?', (item.picked === 'TRUE' || item.picked === true) ? 'Yes' : 'Not yet');
+
+    // These populate once the research report step is live - shown now so the
+    // structure is already there and ready
+    if (item.bestStore) rows += detailRow('Best Store', item.bestStore);
+    if (item.bestPrice) rows += detailRow('Best Price', item.bestPrice);
+    if (item.altStore) rows += detailRow('Alt Store', item.altStore);
+    if (item.altPrice) rows += detailRow('Alt Price', item.altPrice);
+    if (item.weeklySale) rows += detailRow('Weekly Sale', item.weeklySale);
+    if (item.priceValidWindow) rows += detailRow('Price Valid', item.priceValidWindow);
+
+    document.getElementById('detailRows').innerHTML = rows;
+    document.getElementById('detailModalOverlay').classList.add('active');
+  }
+
+  function openFlipp() {
+    var item = currentItems.find(function(i) { return i.sheetRowNumber === pendingDetailRow; });
+    if (!item) return;
+    var query = encodeURIComponent(item.name);
+    window.open('https://flipp.com/search/' + query, '_blank');
+  }
+
+  function detailRow(label, value) {
+    return '<div class="detail-row"><span class="detail-label">' + label + '</span><span class="detail-value">' + value + '</span></div>';
+  }
+
+  function closeDetailModal() {
+    document.getElementById('detailModalOverlay').classList.remove('active');
+    pendingDetailRow = null;
+  }
+
+  function editFromDetail() {
+    var row = pendingDetailRow;
+    closeDetailModal();
+    openEditModalByRow(row);
+  }
+
+  // ---------- Edit ----------
+  var pendingEditRow = null;
+
+  function openEditModalByRow(sheetRowNumber) {
+    var item = currentItems.find(function(i) { return i.sheetRowNumber === sheetRowNumber; });
+    if (!item) return;
+
+    pendingEditRow = sheetRowNumber;
+    document.getElementById('editItemName').textContent = item.name;
+    document.getElementById('editItemCategory').textContent = item.category + ' · Week ' + item.week;
+    document.getElementById('editQty').value = item.quantity || '';
+    document.getElementById('editPriority').value = item.priority || 'Medium';
+    document.getElementById('editNotes').value = item.notes || '';
+    document.getElementById('editBestStore').value = item.bestStore || '';
+    document.getElementById('editBestPrice').value = item.bestPrice || '';
+    document.getElementById('editAltStore').value = item.altStore || '';
+    document.getElementById('editAltPrice').value = item.altPrice || '';
+    document.getElementById('editWeeklySale').value = item.weeklySale || '';
+    document.getElementById('editValidWindow').value = item.priceValidWindow || '';
+    document.getElementById('editModalOverlay').classList.add('active');
+  }
+
+  function closeEditModal() {
+    document.getElementById('editModalOverlay').classList.remove('active');
+    pendingEditRow = null;
+  }
+
+  function confirmEdit() {
+    if (!pendingEditRow) return;
+
+    var payload = {
+      action: 'updateItem',
+      sheetRowNumber: pendingEditRow,
+      quantity: document.getElementById('editQty').value.trim(),
+      priority: document.getElementById('editPriority').value,
+      notes: document.getElementById('editNotes').value.trim(),
+      bestStore: document.getElementById('editBestStore').value.trim(),
+      bestPrice: document.getElementById('editBestPrice').value.trim(),
+      altStore: document.getElementById('editAltStore').value.trim(),
+      altPrice: document.getElementById('editAltPrice').value.trim(),
+      weeklySale: document.getElementById('editWeeklySale').value,
+      priceValidWindow: document.getElementById('editValidWindow').value.trim()
+    };
+
+    fetchJSON(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    })
+      .then(function(result) {
+        if (result.error) throw new Error(result.error);
+        closeEditModal();
+        showToast('✓ Changes saved');
+        return fetchJSON(API_URL + '?action=getItems');
+      })
+      .then(function(items) {
+        currentItems = items;
+        renderItems(items);
+        renderTemplateList();
+      })
+      .catch(function(err) {
+        closeEditModal();
+        alert('Could not save changes: ' + err.message);
+      });
+  }
+
+  // ---------- History ----------
+  function loadHistory() {
+    document.getElementById('historyContainer').innerHTML = '<div class="loading">Loading history...</div>';
+
+    fetchJSON(API_URL + '?action=getSpendingHistory')
+      .then(function(history) {
+        if (history.error) throw new Error(history.error);
+        renderHistory(history);
+      })
+      .catch(function(err) {
+        document.getElementById('historyContainer').innerHTML =
+          '<div class="error">Could not load history.<br>' + err.message + '</div>';
+      });
+  }
+
+  function parseMoney(str) {
+    var num = parseFloat(String(str).replace(/[^0-9.-]/g, ''));
+    return isNaN(num) ? 0 : num;
+  }
+
+  function renderHistory(history) {
+    var container = document.getElementById('historyContainer');
+
+    if (!history || history.length === 0) {
+      container.innerHTML = '<div class="empty">No spending history yet.<br>Upload a receipt and run "Apply Latest Receipt" in your Sheet to get started.</div>';
+      return;
+    }
+
+    var sorted = history.slice().reverse(); // most recent first
+
+    var totalSaved = 0;
+    var weeksUnder = 0;
+    history.forEach(function(h) {
+      totalSaved += parseMoney(h.savingsDollars);
+      if (h.adherence === 'Under Budget') weeksUnder++;
+    });
+    var adherenceRate = Math.round((weeksUnder / history.length) * 100);
+
+    var html = '<div class="history-summary">';
+    html += '  <div class="big">' + (totalSaved >= 0 ? '💰 $' + totalSaved.toFixed(0) : '⚠️ -$' + Math.abs(totalSaved).toFixed(0)) + '</div>';
+    html += '  <div class="sub">Total saved across ' + history.length + ' week' + (history.length > 1 ? 's' : '') + ' · ' + adherenceRate + '% weeks under budget</div>';
+    html += '</div>';
+
+    sorted.forEach(function(h) {
+      var actual = parseMoney(h.actualSpent);
+      var budget = parseMoney(h.budget) || 300;
+      var actualPct = Math.min(100, Math.round((actual / budget) * 100));
+      var isUnder = h.adherence === 'Under Budget';
+
+      html += '<div class="history-card">';
+      html += '  <div class="history-card-top">';
+      html += '    <div class="history-week">Week ' + h.week + '</div>';
+      html += '    <div class="history-adherence ' + (isUnder ? 'under' : 'over') + '">' + h.adherence + '</div>';
+      html += '  </div>';
+      html += '  <div class="history-bar-row">';
+      html += '    <div class="history-bar-label"><span>Actual: ' + h.actualSpent + '</span><span>Budget: ' + h.budget + '</span></div>';
+      html += '    <div class="history-bar-track"><div class="history-bar-fill ' + (isUnder ? 'actual' : '') + '" style="width:' + actualPct + '%; background:' + (isUnder ? '' : 'var(--orange)') + ';"></div></div>';
+      html += '  </div>';
+      html += '  <div class="history-savings ' + (parseMoney(h.savingsDollars) >= 0 ? 'positive' : 'negative') + '">' + (parseMoney(h.savingsDollars) >= 0 ? '✓ Saved ' : '✗ Over by ') + h.savingsDollars.replace('-', '') + ' (' + h.savingsPct.replace('-', '') + ')</div>';
+      if (h.stores) {
+        html += '  <div class="item-detail" style="margin-top:6px;">Stores: ' + h.stores + '</div>';
+      }
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+  }
+
+  // ---------- Route ----------
+  var STORE_ADDRESSES = {
+    "longo's": "Longo's Burloak, 3455 Wyecroft Rd, Oakville, ON L6L 0B6",
+    "metro": "Metro, 1521 Rebecca St, Oakville, ON L6L 1Z8",
+    "farm boy": "Farm Boy, 2441 Lakeshore Rd W, Oakville, ON L6L 5V5",
+    "fortinos": "Fortinos, 173 Lakeshore Rd W, Oakville, ON L6K 1E7",
+    "walmart": "Walmart Supercentre, 234 Hays Blvd, Oakville, ON L6H 6M4",
+    "costco": "Costco Wholesale, 1225 Brant St, Burlington, ON L7P 1X7",
+    "no frills": "No Frills, near Oakville ON L6L 6X6",
+    "sobeys": "Sobeys, near Oakville ON L6L 6X6",
+    "food basics": "Food Basics, near Oakville ON L6L 6X6"
+  };
+
+  function renderRoute() {
+    var container = document.getElementById('routeContainer');
+
+    if (!currentItems || currentItems.length === 0) {
+      container.innerHTML = '<div class="empty">No items yet. Add items first.</div>';
+      return;
+    }
+
+    var thisWeekItems = currentItems.filter(function(i) { return parseInt(i.week) === currentWeek; });
+    var priced = thisWeekItems.filter(function(i) { return i.bestStore; });
+    var unpriced = thisWeekItems.filter(function(i) { return !i.bestStore; });
+
+    if (priced.length === 0) {
+      container.innerHTML = '<div class="empty">No store data yet. Run "Apply Latest Research" in your Sheet first.</div>';
+      return;
+    }
+
+    var groups = {};
+    priced.forEach(function(item) {
+      var store = item.bestStore;
+      if (!groups[store]) groups[store] = [];
+      groups[store].push(item);
+    });
+
+    var storeNames = Object.keys(groups).sort(function(a, b) {
+      return groups[b].length - groups[a].length;
+    });
+
+    var html = '';
+    storeNames.forEach(function(store) {
+      var items = groups[store];
+      var address = STORE_ADDRESSES[store.toLowerCase()] || (store + ' near Oakville ON L6L 6X6');
+      var mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address);
+
+      html += '<div class="store-group">';
+      html += '  <div class="store-group-header">';
+      html += '    <div class="store-name">' + store + '</div>';
+      html += '    <div class="store-count">' + items.length + ' item' + (items.length > 1 ? 's' : '') + '</div>';
+      html += '  </div>';
+      items.forEach(function(item) {
+        html += '  <div class="store-item-row"><span>' + item.name + '</span><span class="price">' + (item.bestPrice || '') + '</span></div>';
+      });
+      html += '  <a class="maps-link-btn" href="' + mapsUrl + '" target="_blank">📍 Open Directions</a>';
+      html += '</div>';
+    });
+
+    if (unpriced.length > 0) {
+      html += '<div class="store-group">';
+      html += '  <div class="store-group-header"><div class="store-name" style="color: var(--muted);">No store assigned yet</div></div>';
+      unpriced.forEach(function(item) {
+        html += '  <div class="store-item-row"><span>' + item.name + '</span><span></span></div>';
+      });
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  // ---------- Manual Add ----------
+  function openManualModal() {
+    document.getElementById('manualName').value = '';
+    document.getElementById('manualCategory').value = 'Dairy';
+    document.getElementById('manualQty').value = '';
+    document.getElementById('manualPriority').value = 'Medium';
+    document.getElementById('manualNotes').value = '';
+    document.getElementById('manualModalOverlay').classList.add('active');
+  }
+
+  function closeManualModal() {
+    document.getElementById('manualModalOverlay').classList.remove('active');
+  }
+
+  function confirmManualAdd() {
+    var name = document.getElementById('manualName').value.trim();
+    if (!name) {
+      alert('Please enter an item name');
+      return;
+    }
+
+    var payload = {
+      action: 'addItem',
+      week: currentWeek,
+      name: name,
+      category: document.getElementById('manualCategory').value,
+      quantity: document.getElementById('manualQty').value.trim(),
+      priority: document.getElementById('manualPriority').value,
+      notes: document.getElementById('manualNotes').value.trim()
+    };
+
+    fetchJSON(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    })
+      .then(function(result) {
+        if (result.error) throw new Error(result.error);
+        closeManualModal();
+        showToast('✓ ' + payload.name + ' added');
+        return fetchJSON(API_URL + '?action=getItems');
+      })
+      .then(function(items) {
+        currentItems = items;
+        renderTemplateList();
+      })
+      .catch(function(err) {
+        closeManualModal();
+        alert('Could not add item: ' + err.message);
+      });
+  }
+
+  // ---------- Picked toggle ----------
+  function togglePicked(sheetRowNumber, currentlyPicked) {
+    var newState = !currentlyPicked;
+
+    fetchJSON(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'togglePicked', sheetRowNumber: sheetRowNumber, picked: newState })
+    })
+      .then(function(result) {
+        if (result.error) throw new Error(result.error);
+        loadItems();
+      })
+      .catch(function(err) {
+        alert('Could not update item: ' + err.message);
+      });
+  }
+
+  // ---------- Delete ----------
+  function deleteItem(sheetRowNumber, itemName) {
+    if (!confirm('Remove "' + itemName + '" from your list?')) return;
+
+    fetchJSON(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'deleteItem', sheetRowNumber: sheetRowNumber })
+    })
+      .then(function(result) {
+        if (result.error) throw new Error(result.error);
+        showToast('✓ ' + itemName + ' removed');
+        loadItems();
+      })
+      .catch(function(err) {
+        alert('Could not delete item: ' + err.message);
+      });
+  }
+
+  // ---------- Add Items ----------
+  function loadTemplates() {
+    document.getElementById('templateList').innerHTML = '<div class="loading">Loading items...</div>';
+
+    fetchJSON(API_URL + '?action=getTemplates')
+      .then(function(templates) {
+        if (templates.error) { throw new Error(templates.error); }
+        currentTemplates = templates;
+        renderCategoryChips();
+        renderTemplateList();
+      })
+      .catch(function(err) {
+        document.getElementById('templateList').innerHTML =
+          '<div class="error">Could not load items.<br>' + err.message + '</div>';
+      });
+  }
+
+  function renderCategoryChips() {
+    var categories = ['All'];
+    currentTemplates.forEach(function(t) {
+      if (categories.indexOf(t.category) === -1) categories.push(t.category);
+    });
+
+    var html = '';
+    categories.forEach(function(cat) {
+      var activeClass = (cat === activeCategory) ? 'active' : '';
+      html += '<div class="chip ' + activeClass + '" onclick="selectCategory(\'' + cat + '\')">' + cat + '</div>';
+    });
+    document.getElementById('categoryChips').innerHTML = html;
+  }
+
+  function selectCategory(cat) {
+    activeCategory = cat;
+    renderCategoryChips();
+    renderTemplateList();
+  }
+
+  function renderTemplateList() {
+    var filtered = (activeCategory === 'All')
+      ? currentTemplates
+      : currentTemplates.filter(function(t) { return t.category === activeCategory; });
+
+    var addedItemsMap = {};
+    currentItems
+      .filter(function(i) { return parseInt(i.week) === currentWeek; })
+      .forEach(function(i) { addedItemsMap[i.name] = i.sheetRowNumber; });
+
+    var html = '';
+    filtered.forEach(function(t) {
+      var isAdded = addedItemsMap.hasOwnProperty(t.name);
+      var clickAction = isAdded
+        ? 'openEditModalByRow(' + addedItemsMap[t.name] + ')'
+        : 'openModal(\'' + t.name.replace(/'/g, "\\'") + '\')';
+      html += '<div class="template-row ' + (isAdded ? 'added' : '') + '" onclick="' + clickAction + '">';
+      html += '  <div>';
+      html += '    <div class="t-name">' + t.name + '</div>';
+      html += '    <div class="t-meta">' + t.category + ' · usually ' + t.typicalQty + (t.notes ? ' · ' + t.notes : '') + (isAdded ? ' · tap to edit' : '') + '</div>';
+      html += '  </div>';
+      html += '  <button class="add-btn-small">' + (isAdded ? '✓' : '+') + '</button>';
+      html += '</div>';
+    });
+
+    document.getElementById('templateList').innerHTML = html || '<div class="empty">No items in this category.</div>';
+  }
+
+  // ---------- Modal ----------
+  function openModal(templateName) {
+    pendingTemplate = currentTemplates.find(function(t) { return t.name === templateName; });
+    if (!pendingTemplate) return;
+
+    document.getElementById('modalItemName').textContent = pendingTemplate.name;
+    document.getElementById('modalItemCategory').textContent = pendingTemplate.category + (pendingTemplate.notes ? ' · ' + pendingTemplate.notes : '');
+    document.getElementById('modalQty').value = pendingTemplate.typicalQty || '';
+    document.getElementById('modalPriority').value = pendingTemplate.typicalPriority || 'Medium';
+
+    document.getElementById('modalOverlay').classList.add('active');
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('active');
+    pendingTemplate = null;
+  }
+
+  function confirmAdd() {
+    if (!pendingTemplate) return;
+
+    var qty = document.getElementById('modalQty').value;
+    var priority = document.getElementById('modalPriority').value;
+
+    var payload = {
+      action: 'addItem',
+      week: currentWeek,
+      name: pendingTemplate.name,
+      category: pendingTemplate.category,
+      quantity: qty,
+      priority: priority,
+      notes: pendingTemplate.notes || ''
+    };
+
+    fetchJSON(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    })
+      .then(function(result) {
+        if (result.error) throw new Error(result.error);
+        closeModal();
+        showToast('✓ ' + payload.name + ' added');
+        return fetchJSON(API_URL + '?action=getItems');
+      })
+      .then(function(items) {
+        currentItems = items;
+        renderTemplateList();
+      })
+      .catch(function(err) {
+        closeModal();
+        alert('Could not add item: ' + err.message);
+      });
+  }
+
+  function showToast(msg) {
+    var toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(function() { toast.classList.remove('show'); }, 2000);
+  }
+
+  loadItems();
+</script>
+
+</body>
+</html>
