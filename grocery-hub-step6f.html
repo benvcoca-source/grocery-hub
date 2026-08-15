@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Grocery Hub</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -301,6 +302,19 @@
   .history-summary .big { font-size: 26px; font-weight: 900; color: var(--mint); }
   .history-summary .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
+  .chart-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 14px 14px 8px; margin-bottom: 12px;
+  }
+
+  .chart-title {
+    font-size: 11px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--muted); margin-bottom: 10px;
+  }
+
+  .chart-canvas-box { position: relative; height: 180px; }
+  .chart-canvas-box-small { height: 160px; max-width: 220px; margin: 0 auto; }
+
   .category-chips {
     display: flex; gap: 8px; padding: 0 20px 16px; overflow-x: auto;
   }
@@ -500,6 +514,23 @@
       <h2>📈 Spending History</h2>
       <p>Budget adherence and savings over time</p>
     </div>
+
+    <div id="chartsWrap" style="display:none; padding: 0 20px;">
+      <div class="chart-card">
+        <div class="chart-title">Actual Spend vs. Budget</div>
+        <div class="chart-canvas-box"><canvas id="chartActualVsBudget"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Weekly Savings / Over</div>
+        <div class="chart-canvas-box"><canvas id="chartSavingsTrend"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Budget Adherence</div>
+        <div class="chart-canvas-box chart-canvas-box-small"><canvas id="chartAdherence"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-title">Week-by-Week Detail</div>
     <div id="historyContainer" class="template-list">
       <div class="loading">Loading history...</div>
     </div>
@@ -1018,6 +1049,7 @@
       .then(function(history) {
         if (history.error) throw new Error(history.error);
         renderHistory(history);
+        renderCharts(history);
       })
       .catch(function(err) {
         document.getElementById('historyContainer').innerHTML =
@@ -1028,6 +1060,95 @@
   function parseMoney(str) {
     var num = parseFloat(String(str).replace(/[^0-9.-]/g, ''));
     return isNaN(num) ? 0 : num;
+  }
+
+  var chartInstances = {};
+
+  function destroyChart(id) {
+    if (chartInstances[id]) {
+      chartInstances[id].destroy();
+      chartInstances[id] = null;
+    }
+  }
+
+  function renderCharts(history) {
+    var wrap = document.getElementById('chartsWrap');
+
+    if (!history || history.length === 0 || typeof Chart === 'undefined') {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    var chronological = history.slice(); // oldest to newest, as stored
+    var labels = chronological.map(function(h) { return 'Wk ' + h.week; });
+    var actuals = chronological.map(function(h) { return parseMoney(h.actualSpent); });
+    var budgets = chronological.map(function(h) { return parseMoney(h.budget) || 300; });
+    var savings = chronological.map(function(h) { return parseMoney(h.savingsDollars); });
+
+    var gridColor = 'rgba(136,146,176,0.15)';
+    var textColor = '#8892b0';
+
+    Chart.defaults.color = textColor;
+    Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+    // ---- Chart 1: Actual vs Budget (grouped bars) ----
+    destroyChart('avb');
+    chartInstances.avb = new Chart(document.getElementById('chartActualVsBudget'), {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Actual', data: actuals, backgroundColor: '#00d9ff', borderRadius: 6, maxBarThickness: 28 },
+          { label: 'Budget', data: budgets, backgroundColor: 'rgba(136,146,176,0.35)', borderRadius: 6, maxBarThickness: 28 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { font: { size: 10 } } },
+          y: { grid: { color: gridColor }, ticks: { font: { size: 10 }, callback: function(v) { return '$' + v; } } }
+        }
+      }
+    });
+
+    // ---- Chart 2: Weekly Savings / Over (colored bars) ----
+    destroyChart('savings');
+    var savingsColors = savings.map(function(s) { return s >= 0 ? '#06d6a0' : '#ff6b35'; });
+    chartInstances.savings = new Chart(document.getElementById('chartSavingsTrend'), {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{ label: 'Savings ($)', data: savings, backgroundColor: savingsColors, borderRadius: 6, maxBarThickness: 32 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { font: { size: 10 } } },
+          y: { grid: { color: gridColor }, ticks: { font: { size: 10 }, callback: function(v) { return '$' + v; } } }
+        }
+      }
+    });
+
+    // ---- Chart 3: Budget Adherence (donut) ----
+    var weeksUnder = chronological.filter(function(h) { return h.adherence === 'Under Budget'; }).length;
+    var weeksOver = chronological.length - weeksUnder;
+
+    destroyChart('adherence');
+    chartInstances.adherence = new Chart(document.getElementById('chartAdherence'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Under Budget', 'Over Budget'],
+        datasets: [{ data: [weeksUnder, weeksOver], backgroundColor: ['#06d6a0', '#ff6b35'], borderWidth: 0 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+      }
+    });
   }
 
   function renderHistory(history) {
