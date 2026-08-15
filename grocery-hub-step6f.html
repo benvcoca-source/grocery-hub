@@ -210,6 +210,44 @@
 
   .refresh-btn:active { opacity: 0.8; }
 
+  .section-title-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 20px;
+  }
+  .section-title-row .section-title { padding: 0; }
+
+  .select-mode-btn {
+    background: none; border: 1px solid var(--card-border); color: var(--cyan);
+    padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800;
+    cursor: pointer;
+  }
+  .select-mode-btn.active {
+    background: var(--cyan); color: #0f1419; border-color: var(--cyan);
+  }
+
+  .select-checkbox {
+    flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px;
+    border: 2px solid var(--orange); display: flex; align-items: center;
+    justify-content: center; font-size: 13px; font-weight: 900;
+    color: transparent; cursor: pointer; margin-right: 4px;
+  }
+  .select-checkbox.checked {
+    background: var(--orange); color: #0f1419;
+  }
+
+  .bulk-bar {
+    position: sticky; bottom: 0; margin: 0 20px 16px;
+    background: var(--orange); color: #0f1419;
+    border-radius: 12px; padding: 12px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 800; font-size: 13px;
+  }
+  .bulk-delete-btn {
+    background: #0f1419; color: var(--orange); border: none;
+    padding: 8px 14px; border-radius: 8px; font-weight: 800;
+    font-size: 12px; cursor: pointer;
+  }
+
   /* ---------- Add Items screen ---------- */
   .add-header { padding: 20px; }
   .add-header h2 { font-size: 22px; font-weight: 900; }
@@ -469,13 +507,21 @@
       </div>
     </div>
 
-    <div class="section-title">Your Grocery List</div>
+    <div class="section-title-row">
+      <div class="section-title">Your Grocery List</div>
+      <button class="select-mode-btn" id="selectModeBtn" onclick="toggleSelectMode()">☑️ Select</button>
+    </div>
     <div class="picked-progress" id="pickedProgress" style="display:none;">
       <span id="pickedText">0 of 0 picked</span>
       <div class="picked-progress-bar"><div class="picked-progress-fill" id="pickedFill" style="width:0%;"></div></div>
     </div>
     <div class="cards" id="itemsContainer">
       <div class="loading">Loading your list...</div>
+    </div>
+
+    <div class="bulk-bar" id="bulkBar" style="display:none;">
+      <span id="bulkCount">0 selected</span>
+      <button class="bulk-delete-btn" onclick="bulkDeleteSelected()">🗑️ Delete Selected</button>
     </div>
 
     <button class="refresh-btn" onclick="loadItems()">↻ Refresh</button>
@@ -684,6 +730,8 @@
   var API_URL = "https://script.google.com/macros/s/AKfycbytVlPk_mRoGplYQhABHgTJ-FFYqE1hBWOJMzOQTVzz2PwLHbPxvoeKm6bc4y78X8qx/exec";
 
   var currentItems = [];
+  var selectMode = false;
+  var selectedRows = new Set();
   var currentTemplates = [];
   var activeCategory = 'All';
   var pendingTemplate = null;
@@ -807,10 +855,15 @@
     var html = '';
     sorted.forEach(function(item) {
       var isPicked = (item.picked === 'TRUE' || item.picked === true);
-      html += '<div class="item-card ' + (isPicked ? 'picked' : '') + '">';
+      var isSelected = selectedRows.has(item.sheetRowNumber);
+      html += '<div class="item-card ' + (isPicked && !selectMode ? 'picked' : '') + '">';
       html += '  <div class="item-checkbox-row">';
-      html += '    <div class="item-checkbox ' + (isPicked ? 'checked' : '') + '" onclick="togglePicked(' + item.sheetRowNumber + ', ' + (isPicked ? 'true' : 'false') + ')">' + (isPicked ? '✓' : '') + '</div>';
-      html += '    <div class="item-left" onclick="openDetailModal(' + item.sheetRowNumber + ')">';
+      if (selectMode) {
+        html += '    <div class="select-checkbox ' + (isSelected ? 'checked' : '') + '" onclick="toggleRowSelection(' + item.sheetRowNumber + ')">' + (isSelected ? '✓' : '') + '</div>';
+      } else {
+        html += '    <div class="item-checkbox ' + (isPicked ? 'checked' : '') + '" onclick="togglePicked(' + item.sheetRowNumber + ', ' + (isPicked ? 'true' : 'false') + ')">' + (isPicked ? '✓' : '') + '</div>';
+      }
+      html += '    <div class="item-left" onclick="' + (selectMode ? 'toggleRowSelection(' + item.sheetRowNumber + ')' : 'openDetailModal(' + item.sheetRowNumber + ')') + '">';
       html += '      <div class="name">' + item.name + '</div>';
       html += '      <div class="meta"><span class="week-badge">W' + item.week + '</span>' + (item.category || '') + ' - ' + (item.quantity || '-') + '</div>';
       if (item.notes) {
@@ -823,10 +876,12 @@
       html += '  </div>';
       html += '  <div class="item-right">';
       html += '    <div class="priority-badge priority-' + item.priority + '">' + item.priority + '</div>';
-      html += '    <div style="display:flex; gap:6px;">';
-      html += '      <button class="item-edit" onclick="openEditModalByRow(' + item.sheetRowNumber + ')">✎</button>';
-      html += '      <button class="item-delete" onclick="deleteItem(' + item.sheetRowNumber + ', \'' + item.name.replace(/'/g, "\\'") + '\')">✕</button>';
-      html += '    </div>';
+      if (!selectMode) {
+        html += '    <div style="display:flex; gap:6px;">';
+        html += '      <button class="item-edit" onclick="openEditModalByRow(' + item.sheetRowNumber + ')">✎</button>';
+        html += '      <button class="item-delete" onclick="deleteItem(' + item.sheetRowNumber + ', \'' + item.name.replace(/'/g, "\\'") + '\')">✕</button>';
+        html += '    </div>';
+      }
       html += '  </div>';
       html += '</div>';
     });
@@ -1404,6 +1459,57 @@
       })
       .catch(function(err) {
         alert('Could not update item: ' + err.message);
+      });
+  }
+
+  // ---------- Multi-select / bulk delete ----------
+  function toggleSelectMode() {
+    selectMode = !selectMode;
+    selectedRows.clear();
+    document.getElementById('selectModeBtn').className = 'select-mode-btn' + (selectMode ? ' active' : '');
+    document.getElementById('selectModeBtn').textContent = selectMode ? '✕ Cancel' : '☑️ Select';
+    document.getElementById('bulkBar').style.display = 'none';
+    renderItems(currentItems);
+  }
+
+  function toggleRowSelection(sheetRowNumber) {
+    if (selectedRows.has(sheetRowNumber)) {
+      selectedRows.delete(sheetRowNumber);
+    } else {
+      selectedRows.add(sheetRowNumber);
+    }
+    var bar = document.getElementById('bulkBar');
+    if (selectedRows.size > 0) {
+      bar.style.display = 'flex';
+      document.getElementById('bulkCount').textContent = selectedRows.size + ' selected';
+    } else {
+      bar.style.display = 'none';
+    }
+    renderItems(currentItems);
+  }
+
+  function bulkDeleteSelected() {
+    if (selectedRows.size === 0) return;
+    var count = selectedRows.size;
+    if (!confirm('Delete ' + count + ' selected item' + (count > 1 ? 's' : '') + '? This cannot be undone.')) return;
+
+    fetchJSON(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'deleteItems', sheetRowNumbers: Array.from(selectedRows) })
+    })
+      .then(function(result) {
+        if (result.error) throw new Error(result.error);
+        showToast('✓ Deleted ' + result.count + ' items');
+        selectMode = false;
+        selectedRows.clear();
+        document.getElementById('selectModeBtn').className = 'select-mode-btn';
+        document.getElementById('selectModeBtn').textContent = '☑️ Select';
+        document.getElementById('bulkBar').style.display = 'none';
+        loadItems();
+      })
+      .catch(function(err) {
+        alert('Could not delete items: ' + err.message);
       });
   }
 
