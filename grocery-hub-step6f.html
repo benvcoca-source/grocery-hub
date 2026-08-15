@@ -749,6 +749,10 @@
       document.getElementById('highCount').textContent = '0';
       document.getElementById('estTotal').textContent = '—';
       document.getElementById('estTrend').textContent = '';
+      (function() {
+        var labelEl = document.getElementById('estTotal').nextElementSibling;
+        if (labelEl) labelEl.textContent = 'Est. Total';
+      })();
       document.getElementById('savingsNum').textContent = '—';
       document.getElementById('savingsLabel').textContent = 'vs $300 Budget';
       document.getElementById('savingsTile').className = 'stat-box';
@@ -801,20 +805,31 @@
     document.getElementById('totalItems').textContent = items.length;
     document.getElementById('highCount').textContent = items.filter(function(i) { return i.priority === 'High'; }).length;
 
-    var total = 0;
+    var estimateTotal = 0;
     var pricedCount = 0;
     items.forEach(function(i) {
       if (i.bestPrice) {
         var num = parseFloat(String(i.bestPrice).replace(/[^0-9.]/g, ''));
-        if (!isNaN(num)) { total += num; pricedCount++; }
+        if (!isNaN(num)) { estimateTotal += num; pricedCount++; }
       }
     });
-    document.getElementById('estTotal').textContent = pricedCount > 0 ? '$' + total.toFixed(0) : '—';
 
-    // Trend line: only show if a genuinely PRIOR week (different from currentWeek) exists
+    // Decide the ONE figure both tiles will agree on: real actual spend if a
+    // receipt has been applied for this week, otherwise the research estimate.
+    var isEstimate = (currentWeekActual === null);
+    var figureToUse = isEstimate ? estimateTotal : currentWeekActual;
+    var haveData = !isEstimate || pricedCount > 0;
+
+    document.getElementById('estTotal').textContent = haveData ? '$' + figureToUse.toFixed(0) : '—';
+    (function() {
+      var labelEl = document.getElementById('estTotal').nextElementSibling;
+      if (labelEl) labelEl.textContent = isEstimate ? 'Est. Total' : 'Actual Total';
+    })();
+
+    // Trend line: only show if a genuinely PRIOR week exists to compare against
     var trendEl = document.getElementById('estTrend');
-    if (pricedCount > 0 && priorWeekActual !== null) {
-      var change = total - priorWeekActual;
+    if (haveData && priorWeekActual !== null) {
+      var change = figureToUse - priorWeekActual;
       var changePct = Math.round((Math.abs(change) / priorWeekActual) * 100);
       if (change <= 0) {
         trendEl.className = 'trend trend-down';
@@ -827,13 +842,9 @@
       trendEl.textContent = '';
     }
 
-    // Savings/Budget tile: use REAL actual spend for the current week if a receipt
-    // has been applied; otherwise fall back to the estimate, clearly labeled as such.
+    // Savings/Budget tile: same figureToUse as above, so the two tiles always agree
     var budget = 300;
     var savingsTile = document.getElementById('savingsTile');
-    var figureToUse = (currentWeekActual !== null) ? currentWeekActual : total;
-    var isEstimate = (currentWeekActual === null);
-    var haveData = (currentWeekActual !== null) || pricedCount > 0;
 
     if (haveData) {
       var diff = budget - figureToUse;
