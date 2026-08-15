@@ -771,8 +771,13 @@
       });
   }
 
-  function renderItems(items) {
+  function renderItems(allItems) {
     var container = document.getElementById('itemsContainer');
+
+    // Only show/count items belonging to the currently active week -
+    // previous weeks stay in the data (for History/Route lookups) but
+    // should never appear mixed into the current Dashboard view.
+    var items = (allItems || []).filter(function(i) { return parseInt(i.week) === currentWeek; });
 
     if (!items || items.length === 0) {
       container.innerHTML = '<div class="empty">No items yet. Tap "Add Items" below.</div>';
@@ -787,7 +792,7 @@
       document.getElementById('savingsNum').textContent = '—';
       document.getElementById('savingsLabel').textContent = 'vs $300 Budget';
       document.getElementById('savingsTile').className = 'stat-box';
-      document.getElementById('weekNum').textContent = '-';
+      document.getElementById('weekNum').textContent = currentWeek || '-';
       document.getElementById('pickedProgress').style.display = 'none';
       return;
     }
