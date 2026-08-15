@@ -811,35 +811,41 @@
     });
     document.getElementById('estTotal').textContent = pricedCount > 0 ? '$' + total.toFixed(0) : '—';
 
-    // Trend line: compare this week's estimate to last week's actual spend
+    // Trend line: only show if a genuinely PRIOR week (different from currentWeek) exists
     var trendEl = document.getElementById('estTrend');
-    if (pricedCount > 0 && lastWeekActual !== null) {
-      var change = total - lastWeekActual;
-      var changePct = Math.round((Math.abs(change) / lastWeekActual) * 100);
+    if (pricedCount > 0 && priorWeekActual !== null) {
+      var change = total - priorWeekActual;
+      var changePct = Math.round((Math.abs(change) / priorWeekActual) * 100);
       if (change <= 0) {
         trendEl.className = 'trend trend-down';
-        trendEl.textContent = '↓ ' + changePct + '% vs last wk ($' + lastWeekActual.toFixed(0) + ')';
+        trendEl.textContent = '↓ ' + changePct + '% vs last wk ($' + priorWeekActual.toFixed(0) + ')';
       } else {
         trendEl.className = 'trend trend-up';
-        trendEl.textContent = '↑ ' + changePct + '% vs last wk ($' + lastWeekActual.toFixed(0) + ')';
+        trendEl.textContent = '↑ ' + changePct + '% vs last wk ($' + priorWeekActual.toFixed(0) + ')';
       }
     } else {
       trendEl.textContent = '';
     }
 
-    // Savings tile: this week's estimate vs $300 budget
+    // Savings/Budget tile: use REAL actual spend for the current week if a receipt
+    // has been applied; otherwise fall back to the estimate, clearly labeled as such.
     var budget = 300;
     var savingsTile = document.getElementById('savingsTile');
-    if (pricedCount > 0) {
-      var diff = budget - total;
+    var figureToUse = (currentWeekActual !== null) ? currentWeekActual : total;
+    var isEstimate = (currentWeekActual === null);
+    var haveData = (currentWeekActual !== null) || pricedCount > 0;
+
+    if (haveData) {
+      var diff = budget - figureToUse;
+      var suffix = isEstimate ? ' (Est.)' : '';
       if (diff >= 0) {
         savingsTile.className = 'stat-box under';
         document.getElementById('savingsNum').textContent = '+$' + diff.toFixed(0);
-        document.getElementById('savingsLabel').textContent = 'Under Budget';
+        document.getElementById('savingsLabel').textContent = 'Under Budget' + suffix;
       } else {
         savingsTile.className = 'stat-box over';
         document.getElementById('savingsNum').textContent = '-$' + Math.abs(diff).toFixed(0);
-        document.getElementById('savingsLabel').textContent = 'Over Budget';
+        document.getElementById('savingsLabel').textContent = 'Over Budget' + suffix;
       }
     } else {
       savingsTile.className = 'stat-box';
@@ -848,21 +854,31 @@
     }
   }
 
-  // ---------- Trend data (last week's actual, for the Est. Total trend line) ----------
-  var lastWeekActual = null;
+  // ---------- Trend / actual-spend data ----------
+  var priorWeekActual = null;   // most recent week strictly BEFORE currentWeek
+  var currentWeekActual = null; // real actual spend for currentWeek, if a receipt has been applied
 
   function loadTrendData() {
     fetchJSON(API_URL + '?action=getSpendingHistory')
       .then(function(history) {
         if (history.error || !history || history.length === 0) return;
-        var mostRecent = history[history.length - 1];
-        var num = parseFloat(String(mostRecent.actualSpent).replace(/[^0-9.]/g, ''));
-        if (!isNaN(num)) {
-          lastWeekActual = num;
-          renderItems(currentItems); // re-render now that trend data is available
+
+        var currentEntry = history.find(function(h) { return parseInt(h.week) === currentWeek; });
+        if (currentEntry) {
+          var num = parseFloat(String(currentEntry.actualSpent).replace(/[^0-9.]/g, ''));
+          if (!isNaN(num)) currentWeekActual = num;
         }
+
+        var priorEntries = history.filter(function(h) { return parseInt(h.week) < currentWeek; });
+        if (priorEntries.length > 0) {
+          var mostRecentPrior = priorEntries[priorEntries.length - 1];
+          var num2 = parseFloat(String(mostRecentPrior.actualSpent).replace(/[^0-9.]/g, ''));
+          if (!isNaN(num2)) priorWeekActual = num2;
+        }
+
+        renderItems(currentItems); // re-render now that history data is available
       })
-      .catch(function() { /* silently skip trend if unavailable */ });
+      .catch(function() { /* silently skip if unavailable */ });
   }
 
   // ---------- Detail view ----------
