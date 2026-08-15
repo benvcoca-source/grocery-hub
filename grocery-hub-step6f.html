@@ -62,38 +62,7 @@
   }
 
   .stats-row {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 20px 20px 0;
-  }
-
-  .savings-banner {
-    margin: 14px 20px 0;
-    padding: 16px;
-    border-radius: 14px;
-    display: none;
-  }
-
-  .savings-banner.under {
-    background: rgba(6,214,160,0.1);
-    border: 1px solid var(--mint);
-  }
-
-  .savings-banner.over {
-    background: rgba(255,107,53,0.1);
-    border: 1px solid var(--orange);
-  }
-
-  .savings-banner .big {
-    font-size: 22px;
-    font-weight: 900;
-  }
-
-  .savings-banner.under .big { color: var(--mint); }
-  .savings-banner.over .big { color: var(--orange); }
-
-  .savings-banner .sub {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 4px;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 20px 20px 0;
   }
 
   .stat-box {
@@ -106,6 +75,20 @@
     font-size: 10px; color: var(--muted); text-transform: uppercase;
     letter-spacing: 0.5px; margin-top: 4px;
   }
+
+  .stat-box .trend {
+    font-size: 10px; font-weight: 700; margin-top: 5px;
+    min-height: 13px;
+  }
+
+  .trend.trend-down { color: var(--mint); }
+  .trend.trend-up { color: var(--orange); }
+
+  #savingsTile.under { border-color: var(--mint); background: rgba(6,214,160,0.08); }
+  #savingsTile.over { border-color: var(--orange); background: rgba(255,107,53,0.08); }
+
+  #savingsTile.under .num { color: var(--mint); }
+  #savingsTile.over .num { color: var(--orange); }
 
   .section-title {
     padding: 8px 20px; font-size: 12px; font-weight: 800; color: var(--muted);
@@ -464,12 +447,12 @@
       <div class="stat-box">
         <div class="num" id="estTotal">—</div>
         <div class="label">Est. Total</div>
+        <div class="trend" id="estTrend"></div>
       </div>
-    </div>
-
-    <div class="savings-banner" id="savingsBanner">
-      <div class="big" id="savingsBig">—</div>
-      <div class="sub" id="savingsSub">vs your $300 weekly budget</div>
+      <div class="stat-box" id="savingsTile">
+        <div class="num" id="savingsNum">—</div>
+        <div class="label" id="savingsLabel">vs $300 Budget</div>
+      </div>
     </div>
 
     <div class="section-title">Your Grocery List</div>
@@ -765,9 +748,12 @@
       document.getElementById('totalItems').textContent = '0';
       document.getElementById('highCount').textContent = '0';
       document.getElementById('estTotal').textContent = '—';
+      document.getElementById('estTrend').textContent = '';
+      document.getElementById('savingsNum').textContent = '—';
+      document.getElementById('savingsLabel').textContent = 'vs $300 Budget';
+      document.getElementById('savingsTile').className = 'stat-box';
       document.getElementById('weekNum').textContent = '-';
       document.getElementById('pickedProgress').style.display = 'none';
-      document.getElementById('savingsBanner').style.display = 'none';
       return;
     }
 
@@ -825,24 +811,58 @@
     });
     document.getElementById('estTotal').textContent = pricedCount > 0 ? '$' + total.toFixed(0) : '—';
 
-    var banner = document.getElementById('savingsBanner');
-    var budget = 300;
-    if (pricedCount > 0) {
-      var diff = budget - total;
-      var pct = Math.abs(Math.round((diff / budget) * 100));
-      banner.style.display = 'block';
-      if (diff >= 0) {
-        banner.className = 'savings-banner under';
-        document.getElementById('savingsBig').textContent = '💰 Saving $' + diff.toFixed(0) + ' this week';
-        document.getElementById('savingsSub').textContent = pct + '% under your $300 budget · ' + pricedCount + ' of ' + items.length + ' items priced';
+    // Trend line: compare this week's estimate to last week's actual spend
+    var trendEl = document.getElementById('estTrend');
+    if (pricedCount > 0 && lastWeekActual !== null) {
+      var change = total - lastWeekActual;
+      var changePct = Math.round((Math.abs(change) / lastWeekActual) * 100);
+      if (change <= 0) {
+        trendEl.className = 'trend trend-down';
+        trendEl.textContent = '↓ ' + changePct + '% vs last wk ($' + lastWeekActual.toFixed(0) + ')';
       } else {
-        banner.className = 'savings-banner over';
-        document.getElementById('savingsBig').textContent = '⚠️ $' + Math.abs(diff).toFixed(0) + ' over budget';
-        document.getElementById('savingsSub').textContent = pct + '% over your $300 budget · ' + pricedCount + ' of ' + items.length + ' items priced';
+        trendEl.className = 'trend trend-up';
+        trendEl.textContent = '↑ ' + changePct + '% vs last wk ($' + lastWeekActual.toFixed(0) + ')';
       }
     } else {
-      banner.style.display = 'none';
+      trendEl.textContent = '';
     }
+
+    // Savings tile: this week's estimate vs $300 budget
+    var budget = 300;
+    var savingsTile = document.getElementById('savingsTile');
+    if (pricedCount > 0) {
+      var diff = budget - total;
+      if (diff >= 0) {
+        savingsTile.className = 'stat-box under';
+        document.getElementById('savingsNum').textContent = '+$' + diff.toFixed(0);
+        document.getElementById('savingsLabel').textContent = 'Under Budget';
+      } else {
+        savingsTile.className = 'stat-box over';
+        document.getElementById('savingsNum').textContent = '-$' + Math.abs(diff).toFixed(0);
+        document.getElementById('savingsLabel').textContent = 'Over Budget';
+      }
+    } else {
+      savingsTile.className = 'stat-box';
+      document.getElementById('savingsNum').textContent = '—';
+      document.getElementById('savingsLabel').textContent = 'vs $300 Budget';
+    }
+  }
+
+  // ---------- Trend data (last week's actual, for the Est. Total trend line) ----------
+  var lastWeekActual = null;
+
+  function loadTrendData() {
+    fetchJSON(API_URL + '?action=getSpendingHistory')
+      .then(function(history) {
+        if (history.error || !history || history.length === 0) return;
+        var mostRecent = history[history.length - 1];
+        var num = parseFloat(String(mostRecent.actualSpent).replace(/[^0-9.]/g, ''));
+        if (!isNaN(num)) {
+          lastWeekActual = num;
+          renderItems(currentItems); // re-render now that trend data is available
+        }
+      })
+      .catch(function() { /* silently skip trend if unavailable */ });
   }
 
   // ---------- Detail view ----------
@@ -1378,6 +1398,7 @@
   }
 
   loadItems();
+  loadTrendData();
 </script>
 
 </body>
