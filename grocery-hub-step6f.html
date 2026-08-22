@@ -885,6 +885,10 @@
         var now = new Date();
         document.getElementById('lastUpdated').textContent =
           'Synced ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        // Only safe to look up this week's actual spend AFTER currentWeek is confirmed above -
+        // calling this in parallel with the items fetch was a race condition that could
+        // grab a previous week's history entry before currentWeek had updated.
+        loadTrendData();
       })
       .catch(function(err) {
         document.getElementById('itemsContainer').innerHTML =
@@ -1812,7 +1816,6 @@
   }
 
   loadItems();
-  loadTrendData();
 </script>
 
 </body>
