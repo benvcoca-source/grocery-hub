@@ -342,7 +342,7 @@
 
   .chart-card {
     background: var(--card); border: 1px solid var(--card-border);
-    border-radius: 14px; padding: 14px 14px 8px; margin-bottom: 12px;
+    border-radius: 14px; padding: 14px 14px 8px; margin: 0 20px 12px;
   }
 
   .chart-title {
@@ -350,8 +350,57 @@
     letter-spacing: 0.5px; color: var(--muted); margin-bottom: 10px;
   }
 
+  .chart-title-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .chart-title-row .chart-title { margin-bottom: 0; }
+
+  .chart-trend-badge {
+    font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 6px;
+  }
+  .chart-trend-badge.improving { background: rgba(6,214,160,0.15); color: var(--mint); }
+  .chart-trend-badge.worsening { background: rgba(255,107,53,0.15); color: var(--orange); }
+  .chart-trend-badge.flat { background: rgba(136,146,176,0.15); color: var(--muted); }
+
   .chart-canvas-box { position: relative; height: 180px; }
   .chart-canvas-box-small { height: 160px; max-width: 220px; margin: 0 auto; }
+
+  .hero-stat-card {
+    margin: 0 20px 16px;
+    background: linear-gradient(135deg, #1a2332 0%, #202b40 100%);
+    border: 1px solid var(--card-border);
+    border-radius: 18px;
+    padding: 22px 20px;
+    text-align: center;
+  }
+  .hero-stat-card.positive { border-color: var(--mint); }
+  .hero-stat-card.negative { border-color: var(--orange); }
+
+  .hero-stat-label {
+    font-size: 10px; font-weight: 800; letter-spacing: 1px;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .hero-stat-num {
+    font-size: 38px; font-weight: 900; margin-top: 6px;
+  }
+  .hero-stat-card.positive .hero-stat-num { color: var(--mint); }
+  .hero-stat-card.negative .hero-stat-num { color: var(--orange); }
+
+  .hero-stat-sub {
+    font-size: 12px; color: var(--muted); margin-top: 4px;
+  }
+
+  .hero-stat-row {
+    display: flex; justify-content: space-around;
+    margin-top: 18px; padding-top: 16px;
+    border-top: 1px solid var(--card-border);
+  }
+  .hero-mini-num { font-size: 18px; font-weight: 900; color: var(--cyan); }
+  .hero-mini-label {
+    font-size: 9px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-top: 3px;
+  }
 
   .category-chips {
     display: flex; gap: 8px; padding: 0 20px 16px; overflow-x: auto;
@@ -561,18 +610,43 @@
       <p>Budget adherence and savings over time</p>
     </div>
 
-    <div id="chartsWrap" style="display:none; padding: 0 20px;">
-      <div class="chart-card">
-        <div class="chart-title">Actual Spend vs. Budget</div>
-        <div class="chart-canvas-box"><canvas id="chartActualVsBudget"></canvas></div>
+    <div id="chartsWrap" style="display:none;">
+      <div class="hero-stat-card" id="heroStatCard">
+        <div class="hero-stat-label">ALL-TIME</div>
+        <div class="hero-stat-num" id="heroStatNum">—</div>
+        <div class="hero-stat-sub" id="heroStatSub">—</div>
+        <div class="hero-stat-row">
+          <div class="hero-mini-stat">
+            <div class="hero-mini-num" id="statAvgWeekly">—</div>
+            <div class="hero-mini-label">Avg / Week</div>
+          </div>
+          <div class="hero-mini-stat">
+            <div class="hero-mini-num" id="statAdherenceRate">—</div>
+            <div class="hero-mini-label">Under Budget</div>
+          </div>
+          <div class="hero-mini-stat">
+            <div class="hero-mini-num" id="statStreak">—</div>
+            <div class="hero-mini-label" id="statStreakLabel">Streak</div>
+          </div>
+        </div>
       </div>
+
       <div class="chart-card">
-        <div class="chart-title">Weekly Savings / Over</div>
+        <div class="chart-title-row">
+          <div class="chart-title">📉 Spending Trend</div>
+          <div class="chart-trend-badge" id="trendBadge">—</div>
+        </div>
+        <div class="chart-canvas-box"><canvas id="chartTrend"></canvas></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-title">💰 Cumulative Savings (All-Time)</div>
+        <div class="chart-canvas-box"><canvas id="chartCumulative"></canvas></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-title">📊 Weekly Result vs. Budget</div>
         <div class="chart-canvas-box"><canvas id="chartSavingsTrend"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">Budget Adherence</div>
-        <div class="chart-canvas-box chart-canvas-box-small"><canvas id="chartAdherence"></canvas></div>
       </div>
     </div>
 
@@ -1148,19 +1222,73 @@
 
     var gridColor = 'rgba(136,146,176,0.15)';
     var textColor = '#8892b0';
-
     Chart.defaults.color = textColor;
     Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
-    // ---- Chart 1: Actual vs Budget (grouped bars) ----
-    destroyChart('avb');
-    chartInstances.avb = new Chart(document.getElementById('chartActualVsBudget'), {
-      type: 'bar',
+    // ---------- Hero stat card: all-time totals + streak ----------
+    var totalSaved = savings.reduce(function(a, b) { return a + b; }, 0);
+    var avgWeekly = actuals.reduce(function(a, b) { return a + b; }, 0) / actuals.length;
+    var weeksUnder = chronological.filter(function(h) { return h.adherence === 'Under Budget'; }).length;
+    var adherenceRate = Math.round((weeksUnder / chronological.length) * 100);
+
+    // Current streak: consecutive weeks (most recent backwards) with the same result
+    var streak = 1;
+    var streakType = chronological[chronological.length - 1].adherence;
+    for (var i = chronological.length - 2; i >= 0; i--) {
+      if (chronological[i].adherence === streakType) { streak++; } else { break; }
+    }
+
+    var heroCard = document.getElementById('heroStatCard');
+    heroCard.className = 'hero-stat-card ' + (totalSaved >= 0 ? 'positive' : 'negative');
+    document.getElementById('heroStatNum').textContent = (totalSaved >= 0 ? '+$' : '-$') + Math.abs(totalSaved).toFixed(0);
+    document.getElementById('heroStatSub').textContent = (totalSaved >= 0 ? 'saved' : 'over') + ' across ' + chronological.length + ' week' + (chronological.length > 1 ? 's' : '') + ' tracked';
+    document.getElementById('statAvgWeekly').textContent = '$' + avgWeekly.toFixed(0);
+    document.getElementById('statAdherenceRate').textContent = adherenceRate + '%';
+    document.getElementById('statStreak').textContent = streak;
+    document.getElementById('statStreakLabel').textContent = (streakType === 'Under Budget' ? 'Win Streak' : 'Over Streak');
+
+    // ---------- Chart 1: Spending Trend (line) - Actual vs Budget over time ----------
+    var trendDirection = 'flat';
+    if (actuals.length >= 2) {
+      var first = actuals[0], last = actuals[actuals.length - 1];
+      if (last < first) trendDirection = 'improving';
+      else if (last > first) trendDirection = 'worsening';
+    }
+    var badge = document.getElementById('trendBadge');
+    badge.className = 'chart-trend-badge ' + trendDirection;
+    badge.textContent = trendDirection === 'improving' ? '↓ Improving' : trendDirection === 'worsening' ? '↑ Rising' : '— Flat';
+
+    destroyChart('trend');
+    var trendCtx = document.getElementById('chartTrend').getContext('2d');
+    var actualGradient = trendCtx.createLinearGradient(0, 0, 0, 180);
+    actualGradient.addColorStop(0, 'rgba(0,217,255,0.35)');
+    actualGradient.addColorStop(1, 'rgba(0,217,255,0.02)');
+
+    chartInstances.trend = new Chart(trendCtx, {
+      type: 'line',
       data: {
         labels: labels,
         datasets: [
-          { label: 'Actual', data: actuals, backgroundColor: '#00d9ff', borderRadius: 6, maxBarThickness: 28 },
-          { label: 'Budget', data: budgets, backgroundColor: 'rgba(136,146,176,0.35)', borderRadius: 6, maxBarThickness: 28 }
+          {
+            label: 'Actual Spend',
+            data: actuals,
+            borderColor: '#00d9ff',
+            backgroundColor: actualGradient,
+            fill: true,
+            tension: 0.3,
+            pointBackgroundColor: '#00d9ff',
+            pointRadius: 4,
+            borderWidth: 2.5
+          },
+          {
+            label: 'Budget',
+            data: budgets,
+            borderColor: 'rgba(136,146,176,0.6)',
+            borderDash: [6, 4],
+            pointRadius: 0,
+            borderWidth: 2,
+            fill: false
+          }
         ]
       },
       options: {
@@ -1173,7 +1301,49 @@
       }
     });
 
-    // ---- Chart 2: Weekly Savings / Over (colored bars) ----
+    // ---------- Chart 2: Cumulative Savings (All-Time running total) ----------
+    var cumulative = [];
+    var running = 0;
+    savings.forEach(function(s) { running += s; cumulative.push(running); });
+    var finalPositive = cumulative[cumulative.length - 1] >= 0;
+
+    destroyChart('cumulative');
+    var cumCtx = document.getElementById('chartCumulative').getContext('2d');
+    var cumColor = finalPositive ? '#06d6a0' : '#ff6b35';
+    var cumGradient = cumCtx.createLinearGradient(0, 0, 0, 180);
+    cumGradient.addColorStop(0, finalPositive ? 'rgba(6,214,160,0.35)' : 'rgba(255,107,53,0.35)');
+    cumGradient.addColorStop(1, finalPositive ? 'rgba(6,214,160,0.02)' : 'rgba(255,107,53,0.02)');
+
+    chartInstances.cumulative = new Chart(cumCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Cumulative Savings',
+          data: cumulative,
+          borderColor: cumColor,
+          backgroundColor: cumGradient,
+          fill: true,
+          tension: 0.3,
+          pointBackgroundColor: cumColor,
+          pointRadius: 4,
+          borderWidth: 2.5
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { font: { size: 10 } } },
+          y: {
+            grid: { color: gridColor },
+            ticks: { font: { size: 10 }, callback: function(v) { return (v >= 0 ? '+$' : '-$') + Math.abs(v); } }
+          }
+        }
+      }
+    });
+
+    // ---------- Chart 3: Weekly Result vs Budget (colored bars) ----------
     destroyChart('savings');
     var savingsColors = savings.map(function(s) { return s >= 0 ? '#06d6a0' : '#ff6b35'; });
     chartInstances.savings = new Chart(document.getElementById('chartSavingsTrend'), {
@@ -1189,24 +1359,6 @@
           x: { grid: { color: gridColor }, ticks: { font: { size: 10 } } },
           y: { grid: { color: gridColor }, ticks: { font: { size: 10 }, callback: function(v) { return '$' + v; } } }
         }
-      }
-    });
-
-    // ---- Chart 3: Budget Adherence (donut) ----
-    var weeksUnder = chronological.filter(function(h) { return h.adherence === 'Under Budget'; }).length;
-    var weeksOver = chronological.length - weeksUnder;
-
-    destroyChart('adherence');
-    chartInstances.adherence = new Chart(document.getElementById('chartAdherence'), {
-      type: 'doughnut',
-      data: {
-        labels: ['Under Budget', 'Over Budget'],
-        datasets: [{ data: [weeksUnder, weeksOver], backgroundColor: ['#06d6a0', '#ff6b35'], borderWidth: 0 }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        cutout: '65%',
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
       }
     });
   }
